@@ -15,6 +15,6 @@ executable('chat', [
   ],
   dependencies : [imgui_dep, utfcpp_dep],
   cpp_args : ['-Wall', '-Wextra'],
-  include_directories : ['/usr/include/SDL2', 'src/'],
-  link_args : ['-lGL', '-lglfw', '-lfreetype', '-lX11', '-lXext'],
+  include_directories : ['src/'],
+  link_args : ['-lGL', '-lglfw', '-lfreetype'],
 )
