@@ -1,4 +1,7 @@
 .cache/
-build/
 .gdbinit
+.vscode/
+build/
 
+subprojects/imgui/
+subprojects/utfcpp/
