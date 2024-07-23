@@ -3,6 +3,7 @@ project('chat', 'cpp')
 cmake = import('cmake')
 
 imgui_proj = subproject('imgui')
+imgui_headers_dep = imgui_proj.get_variable('imgui_headers_dep')
 imgui_dep = imgui_proj.get_variable('imgui_dep')
 
 utfcpp_proj = cmake.subproject('utfcpp')
@@ -18,5 +19,4 @@ portaudiocpp_dep = dependency('portaudiocpp')
 opus_dep = dependency('opus')
 
 subdir('src')
-
-# subdir('test')
+subdir('test')

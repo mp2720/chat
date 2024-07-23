@@ -16,6 +16,10 @@ imgui = static_library('imgui', [
   cpp_args : ['-DIMGUI_ENABLE_FREETYPE']
 )
 
+imgui_headers_dep = declare_dependency(
+    include_directories : inc
+)
+
 imgui_dep = declare_dependency(
   include_directories : inc,
   link_with : imgui

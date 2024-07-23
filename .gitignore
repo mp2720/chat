@@ -2,6 +2,7 @@
 .gdbinit
 .vscode/
 build/
+coverage/
 
 subprojects/imgui/
 subprojects/utfcpp/
