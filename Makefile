@@ -23,4 +23,6 @@ test: build
 	meson test -C ${BUILD_DIR}
 
 cov: test
-	ninja coverage-html -C ${BUILD_DIR}
+	mkdir -p coverage
+	gcovr -e subprojects -e src/main.cpp --html-details coverage/coverage.html\
+		--html-theme github.dark-blue
