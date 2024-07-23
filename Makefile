@@ -8,10 +8,10 @@ setup:
 	meson setup ${BUILD_DIR}/ --buildtype=debug
 
 run: build
-	${BUILD_DIR}/chat
+	${BUILD_DIR}/src/chat
 
 debug: build
-	gdb ${BUILD_DIR}/chat
+	gdb ${BUILD_DIR}/src/chat
 
 build:
 	meson compile -C ${BUILD_DIR}/
