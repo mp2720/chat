@@ -25,5 +25,9 @@ cd subprojects
 
 download_github_tar_gz_release "imgui" "1.90.8" "ocornut/imgui" true
 download_github_tar_gz_release "utfcpp" "4.0.5" "nemtrif/utfcpp"
+download_github_tar_gz_release "rnnoise" "0.2" "xiph/rnnoise" true
+pushd rnnoise
+    ./download_model.sh
+popd
 
 echo "ok"

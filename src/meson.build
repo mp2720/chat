@@ -16,9 +16,35 @@ chat_dep = declare_dependency(
   link_with: chat_lib
 )
 
-executable('chat', [
-    'main.cpp'
-  ],
+executable(
+  'chat',
+  ['main.cpp'],
   dependencies: [chat_dep, imgui_dep, utfcpp_dep],
-  link_args : ['-lGL', '-lglfw', '-lfreetype']
+  link_args: ['-lGL', '-lglfw', '-lfreetype'],
+)
+
+audio_lib = static_library(
+  'audio_lib',
+  [
+    'audio/lib.cpp',
+    'audio/player.cpp',
+    'audio/recorder.cpp',
+    'audio/rnnoise_dsp.cpp',
+    'audio/volume_dsp.cpp',
+  ],
+  dependencies: [portaudiocpp_dep, rnnoise_dep, opus_dep],
+  include_directories: 'audio/',
+  cpp_args: cpp_args,
+)
+
+audio_dep = declare_dependency(
+  include_directories: 'audio/',
+  link_with: audio_lib,
+  dependencies: [portaudiocpp_dep, rnnoise_dep, opus_dep],
+)
+
+executable(
+  'echo',
+  ['audio/example.cpp'],
+  dependencies: [audio_dep],
 )
