@@ -1,7 +1,7 @@
 .PHONY: run debug build setup clean
 
 #to work with a single folder from multiple systems
-BUILD_DIR=build/$(shell uname -n)
+BUILD_DIR=build
 
 setup:
 	mkdir -p ${BUILD_DIR}/
@@ -9,6 +9,9 @@ setup:
 
 run: build
 	${BUILD_DIR}/src/chat
+
+run_echo: build
+	${BUILD_DIR}/src/echo
 
 debug: build
 	gdb ${BUILD_DIR}/src/chat

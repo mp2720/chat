@@ -5,3 +5,4 @@ build/
 
 subprojects/imgui/
 subprojects/utfcpp/
+subprojects/rnnoise/

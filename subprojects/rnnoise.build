@@ -1,0 +1,26 @@
+project('rnnoise', 'c')
+
+cc = meson.get_compiler('c')
+m_dep = cc.find_library('m', required : false)
+
+rnnoise = static_library('rnnoise', [
+    'src/denoise.c',
+	'src/rnn.c',
+	'src/pitch.c',
+	'src/kiss_fft.c',
+	'src/celt_lpc.c',
+	'src/nnet.c',
+	'src/nnet_default.c',
+	'src/parse_lpcnet_weights.c',
+	'src/rnnoise_tables.c',
+	'src/rnnoise_data.c',
+  ],
+  include_directories : ['include/', 'src/'],
+  dependencies: m_dep,
+  c_args : ['-DRNNOISE_BUILD']
+)
+
+rnnoise_dep = declare_dependency(
+  include_directories : 'include/',
+  link_with : rnnoise
+)
