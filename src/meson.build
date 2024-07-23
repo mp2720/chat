@@ -7,7 +7,7 @@ chat_lib = static_library('chat_lib', [
     'gui/text.cpp',
     'utils/unicode.cpp'
   ],
-  dependencies : [imgui_dep, utfcpp_dep],
+  dependencies : [imgui_headers_dep, utfcpp_dep],
   cpp_args : cpp_args,
   include_directories : inc,
 )
