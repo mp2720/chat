@@ -31,6 +31,7 @@ audio_lib = static_library(
     'audio/recorder.cpp',
     'audio/rnnoise_dsp.cpp',
     'audio/volume_dsp.cpp',
+    'audio/codec.cpp',
   ],
   dependencies: [portaudiocpp_dep, rnnoise_dep, opus_dep],
   include_directories: 'audio/',
@@ -46,5 +47,11 @@ audio_dep = declare_dependency(
 executable(
   'echo',
   ['audio/examples/echo.cpp'],
+  dependencies: [audio_dep],
+)
+
+executable(
+  'echo_opus',
+  ['audio/examples/echo_opus.cpp'],
   dependencies: [audio_dep],
 )
