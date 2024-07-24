@@ -11,11 +11,7 @@
 
 using namespace aud;
 
-Player::Player(std::shared_ptr<Source> src) : src(src) {
-    init();
-}
-
-void Player::init() {
+Player::Player(std::shared_ptr<RawSource> src) : src(src) {
     assert(src);
     assert(0 < src->channels() && src->channels() <= getOutputDevice().maxOutputChannels());
     portaudio::DirectionSpecificStreamParameters outParams;
@@ -24,19 +20,21 @@ void Player::init() {
     outParams.setSampleFormat(portaudio::FLOAT32);
     outParams.setHostApiSpecificStreamInfo(nullptr);
     outParams.setSuggestedLatency(getOutputDevice().defaultHighOutputLatency());
-    size_t fs = src->frameSize();
-    if (fs == 0)
-        fs = paFramesPerBufferUnspecified;
     portaudio::StreamParameters params(
         portaudio::DirectionSpecificStreamParameters::null(),
         outParams,
         SAMPLE_RATE,
-        fs,
+        FRAME_SIZE,
         paNoFlag
     );
     std::lock_guard<std::mutex> g(mux);
     stream.open(params);
     thrd = std::thread(&Player::tfunc, this);
+}
+
+Player::~Player() {
+    src->stop();
+    stream.close();
 }
 
 void Player::start() {
@@ -47,11 +45,30 @@ void Player::stop() {
     src->stop();
 }
 
-void Player::term() {
-    if (!stream.isStopped())
-        stop();
-    if (stream.isOpen())
-        stream.close();
+State Player::state() {
+    return src->state();
+}
+
+void Player::reconf() {
+    std::lock_guard<std::mutex> lg(mux);
+    src->stop();
+    src->lockState();
+    stream.close();
+    portaudio::DirectionSpecificStreamParameters outParams;
+    outParams.setDevice(getOutputDevice());
+    outParams.setNumChannels(src->channels());
+    outParams.setSampleFormat(portaudio::FLOAT32);
+    outParams.setHostApiSpecificStreamInfo(nullptr);
+    outParams.setSuggestedLatency(getOutputDevice().defaultHighOutputLatency());
+    portaudio::StreamParameters params(
+        portaudio::DirectionSpecificStreamParameters::null(),
+        outParams,
+        SAMPLE_RATE,
+        FRAME_SIZE,
+        paNoFlag
+    );
+    stream.open(params);
+    src->unlockState();
 }
 
 void Player::setVolume(float percentage) {
@@ -59,66 +76,44 @@ void Player::setVolume(float percentage) {
 }
 
 void Player::tfunc() {
-    size_t defaultFrameSize = 64;
-    size_t bufSize = 480;
+    auto buf = std::make_unique<float[]>(FRAME_SIZE * src->channels());
 
-    size_t requiredSize = src->frameSize();
-    if (requiredSize) {
-        bufSize = requiredSize;
-    }
-    auto buf = std::make_unique<float[]>(bufSize*src->channels());
     stream.start();
     while (1) {
-        src->stateMux.lock();
+        src->lockState();
         switch (src->state()) {
-        case Source::State::Active: {
-            size_t n = requiredSize;
-            if (n == 0) {
-                size_t nr = src->available();
-                size_t nw = stream.availableWriteSize();
-                if (nr == 0) {
-                    if (nw != 0) {
-                        nr = nw;
-                    } else {
-                        nr = defaultFrameSize;
-                    }
-                } else if (nw == 0) {
-                    nw = nr;
-                }
-                using std::min;
-                n = min(nr, min(nw, bufSize / src->channels()));
-            }
-            // printf("%zu\n", n);
-            n = src->read(buf.get(), n);
-            src->stateMux.unlock();
-
+        case State::Active: {
+            src->read(buf.get());
+            src->unlockState();
             float vol = volume;
             if (vol != 1) {
-                for (size_t i = 0; i < n; i++) {
+                for (size_t i = 0; i < FRAME_SIZE; i++) {
                     buf[i] *= vol;
                 }
             }
             try {
-                stream.write(buf.get(), n);
+                stream.write(buf.get(), FRAME_SIZE);
             } catch (...) {
             }
         } break;
 
-        case Source::State::Stopped: {
-            src->stateMux.unlock();
+        case State::Stopped: {
+            src->unlockState();
             {
                 std::lock_guard<std::mutex> g(mux);
-                stream.stop();
+                if (!stream.isStopped()) {
+                    stream.stop();
+                }
             }
-            src->waitStart();
+            src->waitActive();
             {
                 std::lock_guard<std::mutex> g(mux);
                 stream.start();
             }
         } break;
 
-        case Source::State::Finalized: {
-            src->stateMux.unlock();
+        case State::Finalized: {
+            src->unlockState();
             endOfSourceCallback(*this);
             return;
         } break;

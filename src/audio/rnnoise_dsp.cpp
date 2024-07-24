@@ -5,6 +5,7 @@
 #include <rnnoise.h>
 
 aud::RnnoiseDSP::RnnoiseDSP() {
+    assert(aud::SAMPLE_RATE == 48000);
     handler = rnnoise_create(NULL);
     assert(handler);
 }
@@ -14,13 +15,17 @@ aud::RnnoiseDSP::~RnnoiseDSP() {
 }
 
 void aud::RnnoiseDSP::process(float frame[]) {
+    int rnnoise_frame_size = rnnoise_get_frame_size();
+    assert(FRAME_SIZE % rnnoise_frame_size == 0);
     if (state) {
-        size_t frameSize = aud::Recorder::getFrameSize();
-        for (size_t i = 0; i < frameSize; i++) {
+        for (size_t i = 0; i < FRAME_SIZE; i++) {
             frame[i] *= INT16_MAX;
         }
-        rnnoise_process_frame(handler, frame, frame);
-        for (size_t i = 0; i < frameSize; i++) {
+        for (size_t i = 0; i < FRAME_SIZE / rnnoise_frame_size; i++) {
+            rnnoise_process_frame(handler, frame+rnnoise_frame_size*i, frame+rnnoise_frame_size*i);
+        }
+
+        for (size_t i = 0; i < FRAME_SIZE; i++) {
             frame[i] *= 1.f / INT16_MAX;
         }
     }

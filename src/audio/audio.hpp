@@ -1,9 +1,7 @@
 #pragma once
 
 #include <atomic>
-#include <chrono>
 #include <condition_variable>
-#include <cstddef>
 #include <functional>
 #include <list>
 #include <memory>
@@ -15,81 +13,81 @@
 #include <rnnoise.h>
 #include <thread>
 
-using TODO = int;
-
 namespace aud {
+
+inline constexpr int SAMPLE_RATE = 48000; // 48000 KHz
+inline constexpr size_t FRAME_SIZE = 480; // 480
 
 using portaudio::Device;
 using std::atomic;
 using std::list;
 using std::shared_ptr;
 using std::unique_ptr;
-using std::chrono::microseconds;
+
+using portaudio::Device;
 
 using Time = PaTime;
 
-extern const int SAMPLE_RATE; // 48000 KHz
-
 void initialize();
 void terminate();
-
 Device &getOutputDevice();
 Device &getInputDevice();
+void reconfAll();
 
-class Source {
+enum class State {
+    Active,
+    Stopped,
+    Finalized,
+};
+
+class Reconfigurable {
   public:
-    enum class State {
-        Active,
-        Stopped,
-        Finalized,
-    };
-    // if it returns a non-zero value, read should request the given number of frames
-    // cannot be changed during execution
-    virtual size_t frameSize() = 0;
-    // writes n bytes to buf, where 0 <= n <= num, returns n
-    // blocking function
-    virtual size_t read(float frame[], size_t num) = 0;
-    // returns the number of bytes ready for reading
+    Reconfigurable();
+    ~Reconfigurable();
+    // to change the input-output device on-the-fly
+    virtual void reconf() = 0;
+};
+
+class Controllable {
+  public:
     virtual void start() = 0;
     virtual void stop() = 0;
-    virtual void term() = 0;
-    virtual size_t available() = 0;
-
-    std::mutex stateMux;
     virtual State state() = 0;
+    virtual ~Controllable() = default;
+};
 
-    virtual void waitStart() = 0; // if src stopped
-    // when using n channels, 'read' must read n values by 1 'num'
-    //'buf' must be at least n*num
+class Source : public Controllable {
+  public:
+    virtual void lockState() = 0;
+    virtual void unlockState() = 0;
+    virtual void waitActive() = 0; // if src stopped, requires a state check
     virtual int channels() const = 0;
     virtual ~Source() = default;
 };
 
-class ProgressSource : public Source {
+class RawSource : public Source {
   public:
-    virtual Time getTime() = 0; // 0 - 100
-    virtual Time getTotalTime() = 0;
-    virtual bool setTime(Time val) = 0; // 'false' on fail
-    virtual ~ProgressSource() = default;
+    // frame must be at least FRAME_SIZE * channels
+    virtual bool read(float frame[]) = 0;
+    virtual ~RawSource() = default;
 };
 
-class Player {
+class Player : public Controllable, public Reconfigurable {
   public:
-    Player(shared_ptr<Source> src);
-    int channels();
-    TODO getState();                  // for deletion on errors
+    Player(shared_ptr<RawSource> src);
+    ~Player();
     void setVolume(float percentage); // 0 - 100
     float getVolume();                // 0 - 100
-    void stop();
-    void start();
-    void init(); // to change output device
-    void term(); //
+    void start() override;
+    void stop() override;
+    State state() override;
+    void reconf() override;
     std::function<void(Player &)> endOfSourceCallback;
 
   private:
     std::mutex mux;
-    atomic<float> volume{1}; // 100%
-    shared_ptr<Source> src;
+    atomic<float> volume = 1; // 100%
+    shared_ptr<RawSource> src;
     std::thread thrd;
     void tfunc();
     portaudio::BlockingStream stream;
@@ -126,27 +124,28 @@ class VolumeDSP : public DSP {
     atomic<float> val{1};
 };
 
-class Recorder : public Source {
+class Recorder : public RawSource, public Reconfigurable {
   public:
-    static size_t getFrameSize();
+    Recorder();
+    ~Recorder();
+    void lockState() override;
+    void unlockState() override;
     void start() override;
     void stop() override;
-    void init();          // to change input device
-    void term() override; //
-    size_t frameSize() override;
-    size_t read(float frame[], size_t num) override;
-    size_t available() override;
-    Source::State state() override;
-    void waitStart() override;
+    bool read(float frame[]) override;
+    State state() override;
+    void waitActive() override;
     int channels() const override;
+    void reconf() override;
     list<shared_ptr<DSP>> dsps;
 
   private:
-    void setState(Source::State state);
+    void setState(State state);
     std::mutex mux;
     std::mutex cvMux;
+    std::mutex stateMux;
     std::condition_variable cv;
-    Source::State st;
+    State st;
     portaudio::BlockingStream stream;
 };
 

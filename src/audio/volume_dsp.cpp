@@ -6,8 +6,7 @@ void aud::VolumeDSP::set(float val) {
 
 void aud::VolumeDSP::process(float frame[]) {
     float vl = val;
-    size_t n = aud::Recorder::getFrameSize();
-    for (size_t i = 0; i < n; i++) {
+    for (size_t i = 0; i < FRAME_SIZE; i++) {
         frame[i] *= vl;
     }
 }

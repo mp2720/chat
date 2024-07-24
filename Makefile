@@ -1,4 +1,4 @@
-.PHONY: run debug build setup clean test cov
+.PHONY: run run_echo debug build setup clean test cov
 
 #to work with a single folder from multiple systems
 BUILD_DIR=build

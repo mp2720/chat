@@ -45,6 +45,6 @@ audio_dep = declare_dependency(
 
 executable(
   'echo',
-  ['audio/example.cpp'],
+  ['audio/examples/echo.cpp'],
   dependencies: [audio_dep],
 )
