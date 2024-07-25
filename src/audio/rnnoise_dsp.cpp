@@ -14,19 +14,23 @@ aud::RnnoiseDSP::~RnnoiseDSP() {
     rnnoise_destroy(handler);
 }
 
-void aud::RnnoiseDSP::process(float frame[]) {
+void aud::RnnoiseDSP::process(Frame &frame) {
     int rnnoise_frame_size = rnnoise_get_frame_size();
-    assert(FRAME_SIZE % rnnoise_frame_size == 0);
+    assert(frame.size() % rnnoise_frame_size == 0);
+
     if (state) {
-        for (size_t i = 0; i < FRAME_SIZE; i++) {
-            frame[i] *= INT16_MAX;
+        for (float &v : frame) {
+            v *= INT16_MAX;
         }
         for (size_t i = 0; i < FRAME_SIZE / rnnoise_frame_size; i++) {
-            rnnoise_process_frame(handler, frame+rnnoise_frame_size*i, frame+rnnoise_frame_size*i);
+            rnnoise_process_frame(
+                handler,
+                frame.data() + rnnoise_frame_size * i,
+                frame.data() + rnnoise_frame_size * i
+            );
         }
-
-        for (size_t i = 0; i < FRAME_SIZE; i++) {
-            frame[i] *= 1.f / INT16_MAX;
+        for (float &v : frame) {
+            v *= 1.f / INT16_MAX;
         }
     }
 }

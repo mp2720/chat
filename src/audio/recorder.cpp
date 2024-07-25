@@ -90,10 +90,11 @@ State Recorder::state() {
     return st;
 }
 
-bool Recorder::read(float frame[]) {
+bool Recorder::read(Frame &frame) {
     {
         std::lock_guard<std::mutex> g(mux);
-        stream.read(frame, FRAME_SIZE);
+        frame.resize(FRAME_SIZE);
+        stream.read(frame.data(), FRAME_SIZE);
     }
     for (auto &dsp : dsps) {
         dsp->process(frame);

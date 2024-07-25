@@ -76,23 +76,23 @@ void Player::setVolume(float percentage) {
 }
 
 void Player::tfunc() {
-    auto buf = std::make_unique<float[]>(FRAME_SIZE * src->channels());
-
+    Frame buf;
     stream.start();
     while (1) {
         src->lockState();
         switch (src->state()) {
         case State::Active: {
-            src->read(buf.get());
+
+            src->read(buf);
             src->unlockState();
             float vol = volume;
             if (vol != 1) {
-                for (size_t i = 0; i < FRAME_SIZE; i++) {
-                    buf[i] *= vol;
+                for (float &v : buf) {
+                    v *= vol;
                 }
             }
             try {
-                stream.write(buf.get(), FRAME_SIZE);
+                stream.write(buf.data(), FRAME_SIZE);
             } catch (...) {
             }
         } break;

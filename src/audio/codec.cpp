@@ -4,7 +4,6 @@
 #include "opus_defines.h"
 #include <cassert>
 #include <cstddef>
-#include <memory>
 
 using namespace aud;
 
@@ -30,17 +29,17 @@ bool OpusException::operator!=(const OpusException &rhs) const {
     return err != rhs.err;
 }
 
-Encoder::Encoder(shared_ptr<RawSource> src, EncoderPreset ep) : src(src){
+Encoder::Encoder(shared_ptr<RawSource> src, EncoderPreset ep) : src(src) {
     assert(src);
     int application;
     int bitrate;
     int channels = src->channels();
     if (ep == EncoderPreset::Voise) {
         application = OPUS_APPLICATION_VOIP;
-        bitrate = 32768; //bit/s per channel
+        bitrate = 32768; // bit/s
     } else {
         application = OPUS_APPLICATION_AUDIO;
-        bitrate = 65536;
+        bitrate = 131072;
     }
     int err;
     enc = opus_encoder_create(aud::SAMPLE_RATE, channels, application, &err);
@@ -48,24 +47,24 @@ Encoder::Encoder(shared_ptr<RawSource> src, EncoderPreset ep) : src(src){
         throw OpusException(err);
     }
     err = opus_encoder_ctl(enc, OPUS_SET_BITRATE(bitrate));
-    if(err < 0) {
+    if (err < 0) {
         throw OpusException(err);
     }
-
-    buf = std::make_unique<float[]>(FRAME_SIZE * channels);
 }
 
 Encoder::~Encoder() {
     opus_encoder_destroy(enc);
-}  
+}
 
-size_t Encoder::encode(unsigned char *block) {
-    src->read(buf.get());
-    int n_or_err = opus_encode_float(enc, buf.get(), FRAME_SIZE, block, MAX_ENCODER_BLOCK_SIZE);
+void Encoder::encode(std::vector<uint8_t> &block) {
+    src->read(buf);
+    block.resize(MAX_ENCODER_BLOCK_SIZE);
+    int n_or_err =
+        opus_encode_float(enc, buf.data(), FRAME_SIZE, block.data(), MAX_ENCODER_BLOCK_SIZE);
     if (n_or_err < 0) {
         throw OpusException(n_or_err);
     }
-    return n_or_err;
+    block.resize(n_or_err);
 }
 
 void Encoder::lockState() {
@@ -104,20 +103,20 @@ Decoder::Decoder(shared_ptr<EncodedSource> src) : src(src) {
     if (err != OPUS_OK) {
         throw OpusException(err);
     }
-    buf = std::make_unique<unsigned char[]>(MAX_ENCODER_BLOCK_SIZE);
 }
 
 Decoder::~Decoder() {
     opus_decoder_destroy(dec);
 }
 
-bool Decoder::read(float frame[]) {
-    size_t n = src->encode(buf.get());
-    int n_or_err = opus_decode_float(dec, buf.get(), n, frame, FRAME_SIZE, false);
+bool Decoder::read(Frame &frame) {
+    src->encode(buf);
+    frame.resize(FRAME_SIZE * src->channels());
+    int n_or_err = opus_decode_float(dec, buf.data(), buf.size(), frame.data(), FRAME_SIZE, false);
     if (n_or_err < 0) {
         throw OpusException(n_or_err);
     }
-    assert(n_or_err == FRAME_SIZE);
+    assert((size_t)n_or_err == FRAME_SIZE * src->channels());
     return true;
 }
 
@@ -149,4 +148,3 @@ int Decoder::channels() const {
     int ch = src->channels();
     return ch;
 }
-

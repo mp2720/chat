@@ -3,6 +3,7 @@
 #include "audio.hpp"
 #include <exception>
 #include <opus/opus.h>
+#include <vector>
 
 namespace aud {
 
@@ -16,6 +17,7 @@ class OpusException : std::exception {
     const char *ErrorText() const;
     bool operator==(const OpusException &rhs) const;
     bool operator!=(const OpusException &rhs) const;
+
   private:
     int err;
 };
@@ -29,7 +31,7 @@ class EncodedSource : public Source {
   public:
     // block must be at least MAX_ENCODER_BLOCK_SIZE
     // returns the size of the recorded block
-    virtual size_t encode(unsigned char *block) = 0;
+    virtual void encode(std::vector<uint8_t> &block) = 0;
     virtual ~EncodedSource() = default;
 };
 
@@ -44,11 +46,12 @@ class Encoder : public EncodedSource {
     State state() override;
     void waitActive() override;
     int channels() const override;
-    size_t encode(unsigned char *block) override;
+    void encode(std::vector<uint8_t> &block) override;
+
   private:
     OpusEncoder *enc;
     shared_ptr<RawSource> src;
-    unique_ptr<float[]> buf;
+    Frame buf;
 };
 
 class Decoder : public RawSource {
@@ -59,15 +62,16 @@ class Decoder : public RawSource {
     void unlockState() override;
     void start() override;
     void stop() override;
-    bool read(float frame[]) override;
+    bool read(Frame &frame) override;
     State state() override;
     void waitActive() override;
     int channels() const override;
     std::mutex stateMux;
+
   private:
     OpusDecoder *dec;
     shared_ptr<EncodedSource> src;
-    unique_ptr<unsigned char[]> buf;
+    std::vector<unsigned char> buf;
 };
 
 } // namespace aud

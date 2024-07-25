@@ -4,12 +4,11 @@
 #include <portaudiocpp/PortAudioCpp.hxx>
 #include <set>
 
-
 using namespace aud;
 
 shared_ptr<aud::Recorder> aud::mic = nullptr;
 
-std::set<Reconfigurable*> reconfs;
+std::set<Reconfigurable *> reconfs;
 
 Device &aud::getOutputDevice() {
     return portaudio::System::instance().defaultOutputDevice();

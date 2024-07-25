@@ -12,6 +12,7 @@
 #include <portaudiocpp/PortAudioCpp.hxx>
 #include <rnnoise.h>
 #include <thread>
+#include <vector>
 
 namespace aud {
 
@@ -27,6 +28,8 @@ using std::unique_ptr;
 using portaudio::Device;
 
 using Time = PaTime;
+
+using Frame = std::vector<float>;
 
 void initialize();
 void terminate();
@@ -68,7 +71,7 @@ class Source : public Controllable {
 class RawSource : public Source {
   public:
     // frame must be at least FRAME_SIZE * channels
-    virtual bool read(float frame[]) = 0;
+    virtual bool read(Frame &frame) = 0;
     virtual ~RawSource() = default;
 };
 
@@ -96,7 +99,7 @@ class Player : public Controllable, public Reconfigurable {
 class DSP {
   public:
     // is called automatically in a separate thread
-    virtual void process(float frame[]) = 0;
+    virtual void process(Frame &frame) = 0;
     virtual ~DSP() = default;
 };
 
@@ -104,7 +107,7 @@ class RnnoiseDSP : public DSP {
   public:
     RnnoiseDSP();
     ~RnnoiseDSP();
-    void process(float frame[]) override;
+    void process(Frame &frame) override;
     void on();
     void off();
     bool getState();
@@ -116,7 +119,7 @@ class RnnoiseDSP : public DSP {
 
 class VolumeDSP : public DSP {
   public:
-    void process(float frame[]) override;
+    void process(Frame &frame) override;
     void set(float val); // 0 - 100 or more for amplification
     float get();
 
@@ -132,7 +135,7 @@ class Recorder : public RawSource, public Reconfigurable {
     void unlockState() override;
     void start() override;
     void stop() override;
-    bool read(float frame[]) override;
+    bool read(Frame &frame) override;
     State state() override;
     void waitActive() override;
     int channels() const override;
