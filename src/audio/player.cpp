@@ -2,7 +2,6 @@
 #include "portaudiocpp/BlockingStream.hxx"
 #include "portaudiocpp/DirectionSpecificStreamParameters.hxx"
 #include <cassert>
-#include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
@@ -29,11 +28,15 @@ Player::Player(std::shared_ptr<RawSource> src) : src(src) {
     );
     std::lock_guard<std::mutex> g(mux);
     stream.open(params);
+    deleteFlag = std::make_shared<bool>(false);
+
     thrd = std::thread(&Player::tfunc, this);
+    thrd.detach();
 }
 
 Player::~Player() {
-    src->stop();
+    *deleteFlag = true;
+    src->stop(); 
     stream.close();
 }
 
@@ -78,6 +81,8 @@ void Player::setVolume(float percentage) {
 void Player::tfunc() {
     Frame buf;
     stream.start();
+    auto localDeleteFlag = this->deleteFlag;
+    auto src = this->src;
     while (1) {
         src->lockState();
         switch (src->state()) {
@@ -92,6 +97,7 @@ void Player::tfunc() {
                 }
             }
             try {
+                std::lock_guard<std::mutex> g(mux);
                 stream.write(buf.data(), FRAME_SIZE);
             } catch (...) {
             }
@@ -99,6 +105,9 @@ void Player::tfunc() {
 
         case State::Stopped: {
             src->unlockState();
+            if (localDeleteFlag) {
+                return;
+            }
             {
                 std::lock_guard<std::mutex> g(mux);
                 if (!stream.isStopped()) {

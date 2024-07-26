@@ -29,8 +29,6 @@ enum class EncoderPreset {
 
 class EncodedSource : public Source {
   public:
-    // block must be at least MAX_ENCODER_BLOCK_SIZE
-    // returns the size of the recorded block
     virtual void encode(std::vector<uint8_t> &block) = 0;
     virtual ~EncodedSource() = default;
 };

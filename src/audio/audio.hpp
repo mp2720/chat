@@ -70,7 +70,6 @@ class Source : public Controllable {
 
 class RawSource : public Source {
   public:
-    // frame must be at least FRAME_SIZE * channels
     virtual bool read(Frame &frame) = 0;
     virtual ~RawSource() = default;
 };
@@ -88,6 +87,7 @@ class Player : public Controllable, public Reconfigurable {
     std::function<void(Player &)> endOfSourceCallback;
 
   private:
+    shared_ptr<bool> deleteFlag;
     std::mutex mux;
     atomic<float> volume = 1; // 100%
     shared_ptr<RawSource> src;
@@ -98,7 +98,6 @@ class Player : public Controllable, public Reconfigurable {
 
 class DSP {
   public:
-    // is called automatically in a separate thread
     virtual void process(Frame &frame) = 0;
     virtual ~DSP() = default;
 };
@@ -113,7 +112,7 @@ class RnnoiseDSP : public DSP {
     bool getState();
 
   private:
-    atomic<bool> state{true};
+    atomic<bool> state = true;
     DenoiseState *handler;
 };
 
