@@ -1,4 +1,4 @@
-.PHONY: run debug build setup clean test cov
+.PHONY: run run_echo run_echo_opus debug build setup clean test cov
 
 #to work with a single folder from multiple systems
 BUILD_DIR=build
@@ -12,6 +12,9 @@ run: build
 
 run_echo: build
 	${BUILD_DIR}/src/echo
+
+run_echo_opus: build
+	${BUILD_DIR}/src/echo_opus
 
 debug: build
 	gdb ${BUILD_DIR}/src/chat

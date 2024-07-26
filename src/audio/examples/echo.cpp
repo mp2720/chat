@@ -9,10 +9,11 @@ using namespace aud;
 
 int main() {
     initialize();
-    mic->dsps.push_back(std::make_shared<RnnoiseDSP>());
-    aud::Player p(mic);
+    //mic->dsps.push_back(std::make_shared<RnnoiseDSP>());
+
+    Player p(mic);
     p.start();
     while (1) {
-        Pa_Sleep(1000);
+        Pa_Sleep(100);
     }
 }
