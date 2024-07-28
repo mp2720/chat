@@ -4,6 +4,5 @@
 build/
 coverage/
 
-subprojects/imgui/
 subprojects/utfcpp/
 subprojects/rnnoise/

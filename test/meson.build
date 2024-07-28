@@ -10,6 +10,6 @@ tests = [
 foreach t : tests
   test('gtest test ' + t, executable(
     t.underscorify(), t + '.cpp',
-    dependencies: [gtest, chat_dep, utfcpp_dep]
+    dependencies: [gtest, chat_lib_dep] + chat_deps
   ))
 endforeach
