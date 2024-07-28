@@ -16,22 +16,24 @@ void Logger::log(Severity severity, const char *file, long line, std::string &&s
 
     const char *severity_str, *severity_color_code;
     switch (severity) {
-    case SEVERITY_ERROR:
+    case ERROR:
         severity_str = "E";
         severity_color_code = "31";
         break;
-    case SEVERITY_WARNING:
+    case WARNING:
         severity_str = "W";
         severity_color_code = "33";
         break;
-    case SEVERITY_INFO:
+    case INFO:
         severity_str = "I";
         severity_color_code = "34";
         break;
-    case SEVERITY_VERBOSE:
+    case VERBOSE:
         severity_str = "V";
         severity_color_code = "36";
         break;
+    default:
+        assert(false && "invalid severity");
     }
 
     std::time_t t = std::time(nullptr);
@@ -41,8 +43,12 @@ void Logger::log(Severity severity, const char *file, long line, std::string &&s
         std::lock_guard lock(mutex);
 
         *output << "\e[1;" << severity_color_code << 'm' << severity_str << " ("
-                << std::put_time(&tm, "%H:%M:%S") << ") [" << file << ':' << line << "] "
-                << "\e[0m" << str << std::endl;
+                << std::put_time(&tm, "%H:%M:%S") << ") ";
+
+        if (file != nullptr)
+            *output << '[' << file << ':' << line << "] ";
+
+        *output << "\e[0m" << str << std::endl;
     }
 }
 

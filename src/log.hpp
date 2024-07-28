@@ -8,10 +8,10 @@
 
 namespace chat {
 
-enum Severity { SEVERITY_ERROR, SEVERITY_WARNING, SEVERITY_INFO, SEVERITY_VERBOSE };
-
 class Logger {
   public:
+    enum Severity { ERROR, WARNING, INFO, VERBOSE };
+
     using Filter =
         std::function<bool(Severity severity, const char *file, long line, const std::string &msg)>;
 
@@ -35,9 +35,12 @@ class Logger {
 
 extern Logger global_logger;
 
-#define CHAT_LOGE(msg) chat::global_logger.log(chat::SEVERITY_ERROR, __FILE__, __LINE__, msg)
-#define CHAT_LOGW(msg) chat::global_logger.log(chat::SEVERITY_WARNING, __FILE__, __LINE__, msg)
-#define CHAT_LOGI(msg) chat::global_logger.log(chat::SEVERITY_INFO, __FILE__, __LINE__, msg)
-#define CHAT_LOGV(msg) chat::global_logger.log(chat::SEVERITY_VERBOSE, __FILE__, __LINE__, msg)
+#define CHAT_LOG_NO_FILE_LINE(sev, msg) chat::global_logger.log(sev, nullptr, 0, msg)
+#define CHAT_LOG(sev, msg) chat::global_logger.log(sev, __FILE__, __LINE__, msg)
+
+#define CHAT_LOGE(msg) CHAT_LOG(chat::Logger::ERROR, msg)
+#define CHAT_LOGW(msg) CHAT_LOG(chat::Logger::WARNING, msg)
+#define CHAT_LOGI(msg) CHAT_LOG(chat::Logger::INFO, msg)
+#define CHAT_LOGV(msg) CHAT_LOG(chat::Logger::VERBOSE, msg)
 
 } // namespace chat
