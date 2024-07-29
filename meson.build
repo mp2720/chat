@@ -10,9 +10,5 @@ if not rnnoise_dep.found()
   rnnoise_dep = subproject('rnnoise').get_variable('rnnoise_dep')
 endif
 
-portaudiocpp_dep = dependency('portaudiocpp')
-
-opus_dep = dependency('opus')
-
 subdir('src')
 subdir('test')

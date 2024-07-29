@@ -27,6 +27,10 @@ class Logger {
         this->output = output;
     }
 
+    inline std::ostream *getOutput() {
+        return this->output;
+    }
+
   private:
     std::ostream *output = nullptr;
     std::mutex mutex;
