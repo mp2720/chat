@@ -1,7 +1,6 @@
 #include "audio.hpp"
 #include "portaudiocpp/DirectionSpecificStreamParameters.hxx"
 #include "portaudiocpp/SampleDataFormat.hxx"
-#include <cassert>
 #include <cstring>
 #include <mutex>
 #include <portaudio.h>

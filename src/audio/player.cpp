@@ -1,4 +1,5 @@
 #include "audio.hpp"
+#include "err.hpp"
 #include "portaudiocpp/BlockingStream.hxx"
 #include "portaudiocpp/DirectionSpecificStreamParameters.hxx"
 #include <cassert>
@@ -11,8 +12,8 @@
 using namespace aud;
 
 Player::Player(std::shared_ptr<RawSource> src) : src(src) {
-    assert(src);
-    assert(0 < src->channels() && src->channels() <= getOutputDevice().maxOutputChannels());
+    CHAT_ASSERT(src);
+    CHAT_ASSERT(0 < src->channels() && src->channels() <= getOutputDevice().maxOutputChannels());
     portaudio::DirectionSpecificStreamParameters outParams;
     outParams.setDevice(getOutputDevice());
     outParams.setNumChannels(src->channels());

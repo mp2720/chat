@@ -40,12 +40,21 @@ using namespace chat;
             std::rethrow_exception(exptr);
         } catch (std::exception &ex) {
             std::stringstream ss;
-            ss << "Terminate called after throwing an instance of '" << typeid(ex).name() << "':\n" << ex.what();
+            ss << "Terminate called after throwing an instance of '" << typeid(ex).name() << "':\n"
+               << ex.what();
             err::panic(ss.str());
         }
     } else {
         err::panic("Terminate called without an active exception");
     }
+}
+
+[[noreturn]] void
+err::_assert_fail(const char *expr, const char *file, const char *func, int line) {
+    std::stringstream ss;
+    ss << "Assertation '" << expr << "' failed, '" << func << "' in '" << file << ":" << line
+       << "'";
+    err::panic(ss.str());
 }
 
 void err::init() {
