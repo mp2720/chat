@@ -4,10 +4,11 @@
 #include <cassert>
 #include <iomanip>
 #include <mutex>
+#include <time.h> // localtime_r()
 
 using namespace chat;
 
-void Logger::log(Severity severity, const char *file, long line, std::string &&str) {
+void Logger::log(Severity severity, const char *file, long line, std::string &&str) noexcept {
     assert(output && "output must be set");
     assert(filter && "filter must be set");
 
@@ -36,24 +37,22 @@ void Logger::log(Severity severity, const char *file, long line, std::string &&s
         assert(false && "invalid severity");
     }
 
-    std::time_t t = std::time(nullptr);
-    std::tm tm = *std::localtime(&t);
+    struct tm m_time;
+    time_t s_time = time(nullptr);
+
+    localtime_r(&s_time, &m_time);
 
     {
         std::lock_guard lock(mutex);
 
         *output << "\e[1;" << severity_color_code << 'm' << severity_str << " ("
-                << std::put_time(&tm, "%H:%M:%S") << ") ";
+                << std::put_time(&m_time, "%H:%M:%S") << ") ";
 
         if (file != nullptr)
             *output << '[' << file << ':' << line << "] ";
 
         *output << "\e[0m" << str << std::endl;
     }
-}
-
-void Logger::log(Severity severity, const char *file, long line, const boost::format &fmt) {
-    log(severity, file, line, fmt.str());
 }
 
 Logger chat::global_logger;

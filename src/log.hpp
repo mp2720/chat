@@ -1,7 +1,6 @@
 #pragma once
 
 #include <boost/format.hpp>
-#include <boost/format/format_fwd.hpp>
 #include <functional>
 #include <mutex>
 #include <ostream>
@@ -15,19 +14,21 @@ class Logger {
     using Filter =
         std::function<bool(Severity severity, const char *file, long line, const std::string &msg)>;
 
-    void log(Severity severity, const char *file, long line, std::string &&str);
+    void log(Severity severity, const char *file, long line, std::string &&str) noexcept;
 
-    void log(Severity severity, const char *file, long line, const boost::format &fmt);
+    void log(Severity severity, const char *file, long line, const boost::format &fmt) noexcept {
+        log(severity, file, line, fmt.str());
+    }
 
-    inline void setFilter(Filter filter) {
+    void setFilter(Filter filter) noexcept {
         this->filter = filter;
     }
 
-    inline void setOutput(std::ostream *output) {
+    void setOutput(std::ostream *output) noexcept {
         this->output = output;
     }
 
-    inline std::ostream *getOutput() {
+    [[nodiscard]] std::ostream *getOutput() const noexcept {
         return this->output;
     }
 
