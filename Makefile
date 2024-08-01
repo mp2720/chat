@@ -8,16 +8,16 @@ setup:
 	meson setup ${BUILD_DIR}/ --buildtype=debug -Db_coverage=true
 
 run: build
-	${BUILD_DIR}/src/chat
+	${BUILD_DIR}/chat
 
 run_echo: build
-	${BUILD_DIR}/src/echo
+	${BUILD_DIR}/echo
 
 run_echo_opus: build
-	${BUILD_DIR}/src/echo_opus
+	${BUILD_DIR}/echo_opus
 
 debug: build
-	gdb ${BUILD_DIR}/src/chat
+	gdb ${BUILD_DIR}/chat
 
 build:
 	meson compile -C ${BUILD_DIR}/

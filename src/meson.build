@@ -1,20 +1,7 @@
-inc = include_directories('.')
-
 cpp_args = ['-Wall', '-Wextra', '-Og']
 link_args = ['-rdynamic']
 
-chat_deps = [
-  dependency('gl'),
-  dependency('glfw3'),
-  dependency('portaudiocpp'),
-  dependency('opus'),
-  dependency('boost'),
-  utfcpp_dep,
-  rnnoise_dep,
-  gsl_dep
-]
-
-# for use in tests
+inc = include_directories('.')
 chat_lib = static_library(
   'chat_lib',
   [
@@ -39,22 +26,4 @@ chat_lib_dep = declare_dependency(
   link_with: chat_lib,
   dependencies: chat_deps,
   link_args: link_args,
-)
-
-executable(
-  'chat',
-  ['main.cpp'],
-  dependencies: chat_lib_dep,
-)
-
-executable(
-  'echo',
-  ['audio/examples/echo.cpp'],
-  dependencies: chat_lib_dep,
-)
-
-executable(
-  'echo_opus',
-  ['audio/examples/echo_opus.cpp'],
-  dependencies: chat_lib_dep,
 )
