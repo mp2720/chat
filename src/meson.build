@@ -11,6 +11,7 @@ chat_deps = [
   dependency('boost'),
   utfcpp_dep,
   rnnoise_dep,
+  gsl_dep
 ]
 
 # for use in tests
