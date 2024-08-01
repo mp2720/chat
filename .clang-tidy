@@ -1,1 +1,1 @@
-Checks: 'boost-*,bugprone-*,clang-analyzer-*,concurrency-*,perfomance-*,portability-*'
+Checks: 'boost-*,bugprone-*,clang-analyzer-*,concurrency-*,perfomance-*,portability-*,-*-easily-swappable-parameters'
