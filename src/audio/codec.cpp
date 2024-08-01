@@ -1,6 +1,5 @@
 #include "codec.hpp"
 #include "audio.hpp"
-#include "err.hpp"
 #include "opus.h"
 #include "opus_defines.h"
 #include <cassert>
@@ -31,7 +30,7 @@ bool OpusException::operator!=(const OpusException &rhs) const {
 }
 
 Encoder::Encoder(shared_ptr<RawSource> src, EncoderPreset ep) : src(src) {
-    CHAT_ASSERT(src);
+    assert(src);
     int application;
     int bitrate;
     int channels = src->channels();
@@ -98,7 +97,7 @@ int Encoder::channels() const {
 }
 
 Decoder::Decoder(shared_ptr<EncodedSource> src) : src(src) {
-    CHAT_ASSERT(src);
+    assert(src);
     int err;
     dec = opus_decoder_create(SAMPLE_RATE, src->channels(), &err);
     if (err != OPUS_OK) {
@@ -117,7 +116,7 @@ bool Decoder::read(Frame &frame) {
     if (n_or_err < 0) {
         throw OpusException(n_or_err);
     }
-    CHAT_ASSERT((size_t)n_or_err == FRAME_SIZE * src->channels() && "decoder must return full frame");
+    assert((size_t)n_or_err == FRAME_SIZE * src->channels() && "decoder must return full frame");
     return true;
 }
 

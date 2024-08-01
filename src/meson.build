@@ -8,7 +8,6 @@ chat_lib = static_library(
     'gui/io.cpp',
     'gui/gui.cpp',
     'log.cpp',
-    'err.cpp',
     'audio/lib.cpp',
     'audio/player.cpp',
     'audio/recorder.cpp',
