@@ -5,9 +5,10 @@ inc = include_directories('.')
 chat_lib = static_library(
   'chat_lib',
   [
-    'gui/io.cpp',
-    'gui/gui.cpp',
     'log.cpp',
+    'gui/backends/graphics_gl_impl.cpp',
+    'gui/backends/sys_glfw_impl.cpp',
+    'gui/window.cpp',
     'audio/lib.cpp',
     'audio/player.cpp',
     'audio/recorder.cpp',

@@ -10,7 +10,9 @@ endif
 chat_deps = [
   cmake.subproject('GSL').dependency('GSL'),
   dependency('gl'),
+  dependency('glew'),
   dependency('glfw3'),
+  # dependency('cairo'), not used yet
   dependency('portaudiocpp'),
   dependency('opus'),
   dependency('boost'),
