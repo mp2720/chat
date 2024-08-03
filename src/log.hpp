@@ -40,7 +40,7 @@ class Logger {
 
 extern Logger global_logger;
 
-#define CHAT_LOG_NO_FILE_LINE(sev, msg) chat::global_logger.log(sev, nullptr, 0, msg)
+#define CHAT_LOG_FILE_LINE(sev, file, line, msg) chat::global_logger.log(sev, file, line, msg)
 #define CHAT_LOG(sev, msg) chat::global_logger.log(sev, __FILE__, __LINE__, msg)
 
 #define CHAT_LOGE(msg) CHAT_LOG(chat::Logger::ERROR, msg)
