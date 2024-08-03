@@ -113,8 +113,6 @@ GlShaderProgram::GlShaderProgram(
 
         throw GraphicsException(str(format("failed to link shader program: %2%") % info_log));
     }
-
-    vertex.~Shader();
 }
 
 void GlShaderProgram::use() const {
