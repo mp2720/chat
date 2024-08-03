@@ -1,6 +1,5 @@
 .PHONY: run run_echo run_echo_opus debug build setup clean test cov
 
-#to work with a single folder from multiple systems
 BUILD_DIR=build
 
 setup:
@@ -32,3 +31,6 @@ cov: test
 	mkdir -p coverage
 	gcovr -e subprojects -e src/main.cpp --html-details coverage/coverage.html\
 		--html-theme github.dark-blue
+
+memcheck: build
+	valgrind --leak-check=full ${BUILD_DIR}/chat
