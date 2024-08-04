@@ -4,7 +4,7 @@
 #include "err.hpp"
 #include <string>
 
-namespace chat::gui {
+namespace chat::gui::backends {
 
 class IoException : public StringException {
   public:
@@ -27,7 +27,7 @@ class SystemWindow {
     // Process all queued events.
     virtual void update() = 0;
 
-    [[nodiscard]] virtual Vec2i getFrameBufferSize() const = 0;
+    [[nodiscard]] virtual Vec2I getFrameBufferSize() const = 0;
 
     // True iff window is resized or its content is damaged.
     // See also isResizeRequried().
@@ -40,4 +40,4 @@ class SystemWindow {
     virtual void attentionRequest() = 0;
 };
 
-} // namespace chat::gui
+} // namespace chat::gui::backends

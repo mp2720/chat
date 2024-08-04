@@ -5,43 +5,72 @@
 #include "graphics.hpp"
 #include "ptr.hpp"
 #include <array>
+#include <cassert>
 #include <cstddef>
-#include <functional>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
-namespace chat::gui {
+namespace chat::gui::backends {
 
-// OpenGL object with automatic deletion.
-// GL delete function pointers are provided at runtime by GLEW, so we cannot use templates.
-// id must be valid OpenGL object's id or 0 (default value).
+namespace gl_details {
+
+using GlScalarObjectDeleter = void (*)(GLuint);
+using GlArrayObjectDeleter = void (*)(GLsizei, const GLuint *);
+
+// OpenGL object with automatic exception safe deletion.
+//
+// GL delete function pointers are provided at runtime by GLEW, so we cannot pass these function as
+// a template args.
+//
+// id must be valid OpenGL object's id or 0 (default value), deleter must be OpenGL deleter function
+// or nullptr (default value).
+//
+// If deleter == nullptr, then id must be equal 0!
+//
 // Object will not be deleted if id == 0.
-class GlObject {
-    using ScalarDeleter = void (*)(GLuint);
-    using ArrayDeleter = void (*)(GLsizei, const GLuint *);
-
-    std::function<void(GLuint)> deleter;
+template <typename D> class GlObject {
+    D deleter = nullptr;
     GLuint id_ = 0;
 
-  public:
-    GlObject(ScalarDeleter deleter_) noexcept : deleter(deleter_) {};
+    void delete_() noexcept;
 
-    GlObject(ArrayDeleter deleter_) noexcept
-        : deleter([deleter_](GLuint id) noexcept { deleter_(1, &id); }) {};
+  public:
+    static_assert(
+        std::is_same_v<D, GlScalarObjectDeleter> || std::is_same_v<D, GlArrayObjectDeleter>,
+        "invalid GL object deleter type"
+    );
+
+    GlObject() noexcept {};
+
+    GlObject(not_null<D> deleter_) noexcept : deleter(deleter_) {};
 
     GlObject(GlObject &&other) noexcept {
         *this = std::move(other);
     };
 
-    GlObject &operator=(GlObject &&other) noexcept;
+    GlObject &operator=(GlObject &&other) noexcept {
+        if (this != &other) {
+            this->~GlObject();
+
+            deleter = other.deleter;
+            id_ = other.id_;
+
+            other.id_ = 0;
+            other.deleter = nullptr;
+        }
+        return *this;
+    };
 
     [[nodiscard]] GLuint &id() noexcept {
         return id_;
     }
 
     ~GlObject() noexcept {
-        if (id_ != 0)
-            deleter(id_);
+        if (id_ != 0) {
+            assert(deleter != nullptr && "deleter must not be nullptr when id != 0");
+            delete_();
+        }
     }
 
     [[nodiscard]] operator GLuint() const noexcept {
@@ -49,15 +78,26 @@ class GlObject {
     }
 };
 
+template <> inline void GlObject<GlScalarObjectDeleter>::delete_() noexcept {
+    deleter(id_);
+}
+
+template <> inline void GlObject<GlArrayObjectDeleter>::delete_() noexcept {
+    deleter(1, &id_);
+}
+
+using GlScalarObject = GlObject<GlScalarObjectDeleter>;
+using GlArrayObject = GlObject<GlArrayObjectDeleter>;
+
 class GlShaderProgram {
   private:
-    GlObject obj{glDeleteProgram};
+    GlScalarObject obj{glDeleteProgram};
 
     constexpr static size_t INFO_LOG_SIZE = 2048;
 
     class Shader {
       private:
-        GlObject obj{glDeleteShader};
+        GlScalarObject obj{glDeleteShader};
 
       public:
         enum class Type { FRAGMENT, VERTEX };
@@ -78,79 +118,101 @@ class GlShaderProgram {
 
     GlShaderProgram(GlShaderProgram &&) = default;
 
-    void use() const;
+    void use();
 
-    void setBool(not_null<const char *> name, bool value) const;
+    void setUniform(not_null<const char *> name, int value);
 
-    void setInt(not_null<const char *> name, int value) const;
+    void setUniform(not_null<const char *> name, float value);
 
-    void setFloat(not_null<const char *> name, float value) const;
+    void setUniform(not_null<const char *> name, const glm::mat3 &value);
+
+    void setUniform(not_null<const char *> name, const glm::vec4 &value);
+
+    // ...
 };
 
-// TODO: overhaul rectangle rendering, add PBOs, color fill
-// TODO: render parallelogram, not rectangle
+}; // namespace gl_details
 
-class GlTexturedRect : public TexturedRect {
+class GlDrawableRect : public DrawableRect {
   private:
-    constexpr static const char *const FRAG_SHADER_SRC = R"GLSL(
-        #version 330 core
-        out vec4 FragColor;
-        
-        in vec2 TexCoord;
-        
-        uniform sampler2D tex;
-        
-        void main()
-        {
-        	 FragColor = texture(tex, TexCoord);
-        }
-        )GLSL";
+    constexpr static std::array<GLuint, 6> INDICES = {0, 1, 3, 1, 2, 3};
+    constexpr static size_t TEXTURE_CHANNELS = 4;
+    constexpr static size_t VERTICES = 4, VERTICES_ARRAY_MAX_SIZE = VERTICES * (3 + 2);
 
-    constexpr static const char *const VERT_SHADER_SRC = R"GLSL(
-        #version 330 core
-        layout (location = 0) in vec3 aPos;
-        layout (location = 1) in vec2 aTexCoord;
-        
-        out vec2 TexCoord;
-        
-        void main()
-        {
-        	gl_Position = vec4(aPos, 1.0);
-        	TexCoord = vec2(aTexCoord.x, aTexCoord.y);
-        }
-        )GLSL";
+    gl_details::GlArrayObject vao{glDeleteVertexArrays}, vbo{glDeleteBuffers}, ebo{glDeleteBuffers};
+    std::array<GLfloat, VERTICES_ARRAY_MAX_SIZE> vertices;
+    glm::mat3 transform_mat{1};
 
-    constexpr static GLuint INDICES[] = {0, 1, 3, 1, 2, 3};
+    gl_details::GlShaderProgram &shader_program;
 
-    constexpr static size_t CHANNELS = 4;
+    ColorF color;
 
-    GlObject vao{glDeleteVertexArrays}, vbo{glDeleteBuffers}, ebo{glDeleteBuffers};
-    GlObject obj{glDeleteTextures};
-    GlShaderProgram shader_program;
-    std::vector<unsigned char> texture_buf;
-    Vec2i size;
-    std::array<GLfloat, 20> vertices;
+    gl_details::GlArrayObject texture{glDeleteTextures};
+
+    HeapArray<unsigned char> texture_data;
+    Vec2I texture_res;
+    size_t texture_size;
+
+    // use only after construction!
+    bool isTextured() const noexcept {
+        return texture_data != nullptr;
+    }
+
+    // use only after construction!
+    void checkIsTextured() const noexcept {
+        assert(isTextured() && "rectangle is not textured");
+    }
+
+    // use only after construction!
+    void checkIsColored() const noexcept {
+        assert(!isTextured() && "rectangle is not colored");
+    }
+
+    size_t genVertices(const RectPos &pos, bool is_textured);
 
   public:
-    GlTexturedRect(Vec2f bl_pos, Vec2f tr_pos, Vec2i size);
+    GlDrawableRect(
+        RectPos pos,
+        gl_details::GlShaderProgram &shader_program,
+        ColorF color,
+        Vec2I texture_res,
+        float z
+    );
 
-    void draw() const;
+    void draw();
 
-    std::vector<unsigned char> &getTextureData() {
-        return texture_buf;
+    void setPosition(const RectPos &new_pos);
+
+    void setTransform(const glm::mat3 &mat) noexcept {
+        transform_mat = mat;
+    }
+
+    void setColor(const Color &color_) noexcept {
+        checkIsColored();
+        color = color_;
+    }
+
+    not_null<void *> getRGBA8TextureData() noexcept {
+        checkIsTextured();
+        return texture_data;
     };
 
-    void setPosition(Vec2f bl_pos, Vec2f tr_pos) {}
+    void resizeTexture(Vec2I size);
 
-    void notifyTextureBufChanged();
+    void flushTexture();
 
-    void resize(Vec2i size);
+    size_t getPitch() const noexcept {
+        checkIsTextured();
+        return texture_res.x;
+    };
 };
 
 class GlRenderer : public Renderer {
   private:
     ColorF clear_color;
-    mutable std::vector<weak_ptr<TexturedRect>> textured_rects;
+    std::vector<weak_ptr<DrawableRect>> rects;
+
+    gl_details::GlShaderProgram *colored_shader_prog, *textured_shader_prog;
 
     static void handleGlewError(GLenum err);
 
@@ -167,11 +229,13 @@ class GlRenderer : public Renderer {
   public:
     GlRenderer(Color clear_color, bool enable_debug_log);
 
-    shared_ptr<TexturedRect> createTexture(Vec2f bl_pos, Vec2f tr_pos, Vec2i size);
+    shared_ptr<DrawableRect> createTexturedRect(const RectPos &pos, const Vec2I size);
 
-    void resize(Vec2i frame_buf_size);
+    shared_ptr<DrawableRect> createColoredRect(const RectPos &pos, const Color &color);
 
-    void draw() const;
+    void resize(Vec2I frame_buf_size);
+
+    void draw();
 };
 
-} // namespace chat::gui
+} // namespace chat::gui::backends

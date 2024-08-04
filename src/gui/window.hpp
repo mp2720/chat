@@ -9,9 +9,9 @@ namespace chat::gui {
 
 class Window {
   private:
-    unique_ptr<SystemWindow> system_window;
-    unique_ptr<Renderer> renderer;
-    shared_ptr<TexturedRect> canvas_texture;
+    unique_ptr<backends::SystemWindow> system_window;
+    unique_ptr<backends::Renderer> renderer;
+    shared_ptr<backends::DrawableRect> texture1, texture2;
 
     bool need_redraw = true;
     bool can_continue = true;
@@ -21,7 +21,10 @@ class Window {
     void resize();
 
   public:
-    Window(unique_ptr<SystemWindow> system_window_, unique_ptr<Renderer> renderer_);
+    Window(
+        unique_ptr<backends::SystemWindow> system_window_,
+        unique_ptr<backends::Renderer> renderer_
+    );
 
     void update();
 

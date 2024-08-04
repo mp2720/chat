@@ -4,7 +4,7 @@
 #include <GLFW/glfw3.h>
 #include <boost/format.hpp>
 
-using namespace chat::gui;
+using namespace chat::gui::backends;
 
 using boost::format, boost::str;
 
@@ -33,9 +33,6 @@ void GlfwSystemWindow::onWindowResize(GLFWwindow *window, int width, int height)
 
 GlfwSystemWindow::GlfwSystemWindow() {
     glfwSetErrorCallback(onGlfwErrorCallback);
-
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
 
     // This specific title is needed to configure WMs (like i3) to move window to another workspace.
     // i3 need this title to be set during the window creation. The actual title can be set later

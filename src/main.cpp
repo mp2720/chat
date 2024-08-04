@@ -7,6 +7,7 @@
 
 using namespace chat;
 using namespace chat::gui;
+using namespace chat::gui::backends;
 
 int main(int, char **) {
     global_logger.setFilter(
@@ -18,11 +19,14 @@ int main(int, char **) {
     global_logger.setOutput(&std::cerr);
 
     glfwInit();
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     {
         unique_ptr<SystemWindow> sys_win = std::make_unique<GlfwSystemWindow>();
         sys_win->switchContext();
 
-        unique_ptr<Renderer> renderer = std::make_unique<GlRenderer>(Color{1, 1, 0, 1}, true);
+        unique_ptr<Renderer> renderer = std::make_unique<GlRenderer>(Color{0, 0, 0, 1}, true);
 
         Window window(std::move(sys_win), std::move(renderer));
 

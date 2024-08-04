@@ -3,14 +3,14 @@
 #include "../gl_include.h"
 #include "sys.hpp"
 
-namespace chat::gui {
+namespace chat::gui::backends {
 
 class GlfwSystemWindow : public SystemWindow {
   private:
     GLFWwindow *glfw_window;
     bool refresh_required = true;
     bool resize_required = true;
-    Vec2i frame_buffer_size{};
+    Vec2I frame_buffer_size{};
 
     static GlfwSystemWindow *getThis(GLFWwindow *win) noexcept {
         auto *this_ = static_cast<GlfwSystemWindow *>(glfwGetWindowUserPointer(win));
@@ -32,7 +32,7 @@ class GlfwSystemWindow : public SystemWindow {
     GlfwSystemWindow();
 
     void switchContext() {
-        /*glfwMakeContextCurrent(glfw_window);*/
+        glfwMakeContextCurrent(glfw_window);
     }
 
     void setTitle(const char *title) {
@@ -52,7 +52,7 @@ class GlfwSystemWindow : public SystemWindow {
         resize_required = false;
     }
 
-    [[nodiscard]] Vec2i getFrameBufferSize() const {
+    [[nodiscard]] Vec2I getFrameBufferSize() const {
         return frame_buffer_size;
     }
 
@@ -62,8 +62,8 @@ class GlfwSystemWindow : public SystemWindow {
     }
 
     [[nodiscard]] bool isResizeRequried() const {
-        return true;
-        /*return resize_required;*/
+        /*return true;*/
+        return resize_required;
     };
 
     void attentionRequest() {
@@ -75,4 +75,4 @@ class GlfwSystemWindow : public SystemWindow {
     }
 };
 
-} // namespace chat::gui
+} // namespace chat::gui::backends

@@ -1,4 +1,7 @@
 #include "window.hpp"
+#include "gui/backends/graphics.hpp"
+#include "gui/backends/sys.hpp"
+#include "gui/vec.hpp"
 
 #include <cassert>
 #include <chrono>
@@ -6,29 +9,36 @@
 
 using namespace chat::gui;
 
+using backends::SystemWindow, backends::Renderer, backends::DrawableRect;
+
+static RectF canvas_pos{-0.5, -0.5, 0.5, 0.5};
+
 void Window::resize() {
     // simple test
     // very slow
 
-    Vec2i fb_size = system_window->getFrameBufferSize();
+    Vec2I fb_size = system_window->getFrameBufferSize();
     assert(fb_size.x != 0);
 
-    canvas_texture->resize(fb_size);
+    /*canvas_texture->resize(fb_size);*/
     renderer->resize(fb_size);
 
-    auto &data = canvas_texture->getTextureData();
+    /*auto &data = canvas_texture->getTextureData();*/
+    /**/
+    /*for (int x = 0; x < fb_size.x * fb_size.y * 4; ++x) {*/
+    /*    data[x] = rand();*/
+    /*}*/
 
-    for (int x = 0; x < fb_size.x * fb_size.y * 4; ++x) {
-        data[x] = rand();
-    }
-
-    canvas_texture->notifyTextureBufChanged();
+    /*canvas_texture->notifyTextureBufChanged();*/
 }
 
 Window::Window(unique_ptr<SystemWindow> system_window_, unique_ptr<Renderer> renderer_)
     : system_window(std::move(system_window_)), renderer(std::move(renderer_)) {
 
-    canvas_texture = renderer->createTexture({-0.5, -0.5}, {0.5, 0.5}, {100, 100});
+    texture1 = renderer->createColoredRect(canvas_pos, {128, 0, 128, 255}, -0.4);
+    texture2 = renderer->createColoredRect({-0.3, -0.3, 0.8, 0.8}, {0, 128, 128, 100}, -1.);
+
+    /*canvas_texture = renderer->createTexture({-0.5, -0.5}, {0.5, 0.5}, {100, 100});*/
 
     resize();
 }
@@ -43,10 +53,15 @@ void Window::update() {
     if (system_window->isResizeRequried())
         resize();
 
-    if (system_window->isResizeRequried() || system_window->isRefreshRequried())
+    if (system_window->isResizeRequried() || system_window->isRefreshRequried()) {
+        canvas_pos.x += 0.001;
+        /*texture1->setPosition(canvas_pos);*/
         renderer->draw();
+    }
 
     system_window->swapBuffers();
+
+    system_window->update();
 
     // need_redraw = ...
 
