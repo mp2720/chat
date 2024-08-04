@@ -11,3 +11,8 @@ AllowAllArgumentsOnNextLine: false
 AllowAllParametersOfDeclarationOnNextLine: false
 BinPackParameters: false
 BreakBeforeBinaryOperators: None
+BreakAfterAttributes: Always
+IndentPPDirectives: AfterHash
+PPIndentWidth: 2
+PackConstructorInitializers: Never
+SeparateDefinitionBlocks: Always
