@@ -13,20 +13,11 @@ using namespace backends;
 static RectPos rect1_pos{{-0.5, -0.5}, {0.5, 0.5}};
 
 void Window::resize() {
-    // simple test
-    // very slow
-
     Vec2I fb_size = system_window->getFrameBufferSize();
     assert(fb_size.x != 0);
 
-    auto texture1 = rect1->requireTexture();
-    texture1->resize(fb_size / 5);
-
-    if (auto buf_lock = texture1->lockBuf()) {
-        unsigned char *ptr = buf_lock->get();
-        for (size_t x = 0; x < texture1->getPitch() * texture1->getResolution().y * 4; ++x)
-            ptr[x] = rand();
-    }
+    /*auto texture1 = rect1->requireTexture();*/
+    /*texture1->resize(fb_size / 5);*/
 
     renderer->resize(fb_size);
 }
@@ -39,7 +30,7 @@ Window::Window(unique_ptr<SystemWindow> system_window_, unique_ptr<Renderer> ren
         .pos = rect1_pos,
         .z = 100,
         .texture_mode = backends::TextureMode::STATIC_TEXTURE,
-        .texture_res = {100, 100},
+        .texture_res = {1000, 300},
         .color = {255, 0, 0, 128},
     };
 
@@ -52,7 +43,13 @@ Window::Window(unique_ptr<SystemWindow> system_window_, unique_ptr<Renderer> ren
     rect1 = renderer->createRect(conf1);
     rect2 = renderer->createRect(conf2);
 
-    resize();
+    auto texture1 = rect1->requireTexture();
+
+    if (auto buf_lock = texture1->lockBuf()) {
+        unsigned char *ptr = buf_lock->get();
+        for (size_t x = 0; x < texture1->getPitch() * texture1->getResolution().y * 4; ++x)
+            ptr[x] = rand();
+    }
 }
 
 void Window::update() {
