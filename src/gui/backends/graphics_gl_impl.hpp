@@ -19,21 +19,6 @@ class GlRenderer;
 
 namespace gl_details {
 
-// OpenGL object with automatic exception safe deletion.
-//
-// GL delete function pointers are provided at runtime by GLEW, so we cannot pass them as a template
-// args.
-//
-// `id` must be valid OpenGL object's id or 0 (default value), `deleter` must be OpenGL deleter
-// function or nullptr (default value).
-//
-// This must always be true: `(id == 0) == (delter == nullptr)`.
-//
-// Object will not be deleted iff `id == 0 && deleter == nullptr`.
-//
-// For some objects OpenGL provides create/delete functions that work with arrays, for others it
-// provides functions that work with single item. In the first case use GlObject, otherwise use
-// GlObject.
 using GlSingleDeleteFun = void(GLuint);
 using GlArrayDeleteFun = void(GLsizei, const GLuint *);
 
@@ -61,12 +46,6 @@ template <>
 inline void GlDeleteFunCaller<GlArrayDeleteFun **>::operator()(GlArrayDeleteFun **fun, GLuint id) {
     (*fun)(1, &id);
 }
-
-using T = std::remove_pointer_t<decltype(&glDeleteTextures)>;
-static_assert(std::is_same_v<T, GlArrayDeleteFun>);
-
-using T2 = std::remove_pointer_t<decltype(glDeleteProgram)>;
-static_assert(std::is_same_v<T2, GlSingleDeleteFun>);
 
 template <auto deleteFunPtr> class GlObject {
   private:
