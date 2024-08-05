@@ -1,4 +1,4 @@
-cpp_args = ['-Wall', '-Wextra', '-Og', '-DCHAT_GL_IGNORE_ERRORS']
+cpp_args = ['-Wall', '-Wextra', '-O0', '-g']
 link_args = ['-rdynamic']
 
 inc = include_directories('.')
