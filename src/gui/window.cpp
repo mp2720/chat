@@ -8,10 +8,9 @@
 #include <cstdlib>
 
 using namespace chat::gui;
+using namespace backends;
 
-using backends::SystemWindow, backends::Renderer, backends::DrawableRect;
-
-static RectF canvas_pos{-0.5, -0.5, 0.5, 0.5};
+static RectPos rect1_pos{{-0.5, -0.5}, {0.5, 0.5}};
 
 void Window::resize() {
     // simple test
@@ -20,25 +19,38 @@ void Window::resize() {
     Vec2I fb_size = system_window->getFrameBufferSize();
     assert(fb_size.x != 0);
 
-    /*canvas_texture->resize(fb_size);*/
+    auto texture1 = rect1->requireTexture();
+    texture1->resize(fb_size / 5);
+
+    if (auto buf_lock = texture1->lockBuf()) {
+        unsigned char *ptr = buf_lock->get();
+        for (size_t x = 0; x < texture1->getPitch() * texture1->getResolution().y * 4; ++x)
+            ptr[x] = rand();
+    }
+
     renderer->resize(fb_size);
-
-    /*auto &data = canvas_texture->getTextureData();*/
-    /**/
-    /*for (int x = 0; x < fb_size.x * fb_size.y * 4; ++x) {*/
-    /*    data[x] = rand();*/
-    /*}*/
-
-    /*canvas_texture->notifyTextureBufChanged();*/
 }
 
 Window::Window(unique_ptr<SystemWindow> system_window_, unique_ptr<Renderer> renderer_)
-    : system_window(std::move(system_window_)), renderer(std::move(renderer_)) {
+    : system_window(std::move(system_window_)),
+      renderer(std::move(renderer_)) {
 
-    texture1 = renderer->createColoredRect(canvas_pos, {128, 0, 128, 255}, -0.4);
-    texture2 = renderer->createColoredRect({-0.3, -0.3, 0.8, 0.8}, {0, 128, 128, 100}, -1.);
+    DrawableRectConfig conf1 = {
+        .pos = rect1_pos,
+        .z = 100,
+        .texture_mode = backends::TextureMode::STATIC_TEXTURE,
+        .texture_res = {100, 100},
+        .color = {255, 0, 0, 128},
+    };
 
-    /*canvas_texture = renderer->createTexture({-0.5, -0.5}, {0.5, 0.5}, {100, 100});*/
+    DrawableRectConfig conf2 = {
+        .pos = {{-0.3, -0.3}, {0.8, 0.8}},
+        .z = 200,
+        .color = {0, 255, 0, 128},
+    };
+
+    rect1 = renderer->createRect(conf1);
+    rect2 = renderer->createRect(conf2);
 
     resize();
 }
@@ -54,7 +66,11 @@ void Window::update() {
         resize();
 
     if (system_window->isResizeRequried() || system_window->isRefreshRequried()) {
-        canvas_pos.x += 0.001;
+        rect1_pos.bl.x = sin(prev_update_time.count() / 1000.);
+        rect1_pos.tr.x = -rect1_pos.bl.x;
+
+        rect1->setPosition(rect1_pos);
+
         /*texture1->setPosition(canvas_pos);*/
         renderer->draw();
     }

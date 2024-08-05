@@ -7,43 +7,81 @@
 #include <array>
 #include <cassert>
 #include <cstddef>
+#include <cstdint>
+#include <functional>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
 namespace chat::gui::backends {
 
-namespace gl_details {
+class GlRenderer;
 
-using GlScalarObjectDeleter = void (*)(GLuint);
-using GlArrayObjectDeleter = void (*)(GLsizei, const GLuint *);
+namespace gl_details {
 
 // OpenGL object with automatic exception safe deletion.
 //
-// GL delete function pointers are provided at runtime by GLEW, so we cannot pass these function as
-// a template args.
+// GL delete function pointers are provided at runtime by GLEW, so we cannot pass them as a template
+// args.
 //
-// id must be valid OpenGL object's id or 0 (default value), deleter must be OpenGL deleter function
-// or nullptr (default value).
+// `id` must be valid OpenGL object's id or 0 (default value), `deleter` must be OpenGL deleter
+// function or nullptr (default value).
 //
-// If deleter == nullptr, then id must be equal 0!
+// This must always be true: `(id == 0) == (delter == nullptr)`.
 //
-// Object will not be deleted if id == 0.
-template <typename D> class GlObject {
-    D deleter = nullptr;
-    GLuint id_ = 0;
+// Object will not be deleted iff `id == 0 && deleter == nullptr`.
+//
+// For some objects OpenGL provides create/delete functions that work with arrays, for others it
+// provides functions that work with single item. In the first case use GlObject, otherwise use
+// GlObject.
+using GlSingleDeleteFun = void(GLuint);
+using GlArrayDeleteFun = void(GLsizei, const GLuint *);
 
-    void delete_() noexcept;
+template <typename F> struct GlDeleteFunCaller {
+    void operator()(F fun, GLuint id);
+};
 
-  public:
+template <>
+inline void GlDeleteFunCaller<GlSingleDeleteFun *>::operator()(GlSingleDeleteFun *fun, GLuint id) {
+    fun(id);
+}
+
+template <>
+inline void GlDeleteFunCaller<GlArrayDeleteFun *>::operator()(GlArrayDeleteFun *fun, GLuint id) {
+    fun(1, &id);
+}
+
+template <>
+inline void
+GlDeleteFunCaller<GlSingleDeleteFun **>::operator()(GlSingleDeleteFun **fun, GLuint id) {
+    (*fun)(id);
+}
+
+template <>
+inline void GlDeleteFunCaller<GlArrayDeleteFun **>::operator()(GlArrayDeleteFun **fun, GLuint id) {
+    (*fun)(1, &id);
+}
+
+using T = std::remove_pointer_t<decltype(&glDeleteTextures)>;
+static_assert(std::is_same_v<T, GlArrayDeleteFun>);
+
+using T2 = std::remove_pointer_t<decltype(glDeleteProgram)>;
+static_assert(std::is_same_v<T2, GlSingleDeleteFun>);
+
+template <auto deleteFunPtr> class GlObject {
+  private:
+    GLuint id = 0;
+
+    using DeleteFunType = std::remove_pointer_t<std::remove_pointer_t<decltype(deleteFunPtr)>>;
+
     static_assert(
-        std::is_same_v<D, GlScalarObjectDeleter> || std::is_same_v<D, GlArrayObjectDeleter>,
+        std::is_same_v<DeleteFunType, GlSingleDeleteFun> ||
+            std::is_same_v<DeleteFunType, GlArrayDeleteFun>,
         "invalid GL object deleter type"
     );
 
+  public:
     GlObject() noexcept {};
-
-    GlObject(not_null<D> deleter_) noexcept : deleter(deleter_) {};
 
     GlObject(GlObject &&other) noexcept {
         *this = std::move(other);
@@ -53,166 +91,243 @@ template <typename D> class GlObject {
         if (this != &other) {
             this->~GlObject();
 
-            deleter = other.deleter;
-            id_ = other.id_;
+            id = other.id;
 
-            other.id_ = 0;
-            other.deleter = nullptr;
+            other.id = 0;
         }
         return *this;
     };
 
-    [[nodiscard]] GLuint &id() noexcept {
-        return id_;
-    }
-
     ~GlObject() noexcept {
-        if (id_ != 0) {
-            assert(deleter != nullptr && "deleter must not be nullptr when id != 0");
-            delete_();
+        if (id != 0) {
+            GlDeleteFunCaller<decltype(deleteFunPtr)> caller;
+            caller(deleteFunPtr, id);
         }
     }
 
-    [[nodiscard]] operator GLuint() const noexcept {
-        return id_;
+    GLuint getId() const noexcept {
+        return id;
+    }
+
+    GLuint &getIdRef() noexcept {
+        return id;
+    }
+
+    operator GLuint() const noexcept {
+        return id;
     }
 };
 
-template <> inline void GlObject<GlScalarObjectDeleter>::delete_() noexcept {
-    deleter(id_);
-}
-
-template <> inline void GlObject<GlArrayObjectDeleter>::delete_() noexcept {
-    deleter(1, &id_);
-}
-
-using GlScalarObject = GlObject<GlScalarObjectDeleter>;
-using GlArrayObject = GlObject<GlArrayObjectDeleter>;
-
 class GlShaderProgram {
   private:
-    GlScalarObject obj{glDeleteProgram};
+    GlObject<&glDeleteProgram> obj;
 
     constexpr static size_t INFO_LOG_SIZE = 2048;
 
     class Shader {
       private:
-        GlScalarObject obj{glDeleteShader};
+        GlObject<&glDeleteShader> obj;
 
       public:
         enum class Type { FRAGMENT, VERTEX };
 
         Shader(not_null<const char *> src, Type type);
 
-        [[nodiscard]] GLuint getId() const noexcept {
-            return obj;
+        GLuint getId() const noexcept {
+            return obj.getId();
         }
     };
 
-    [[nodiscard]] GLint getUniformLocation(not_null<const char *> name) const;
+    GLint getUniformLocation(not_null<const char *> name) const;
 
   public:
+    GlShaderProgram() {};
+
     GlShaderProgram(not_null<const char *> vertex_src, not_null<const char *> frag_src);
 
-    GlShaderProgram(const GlShaderProgram &) = delete;
+    GlShaderProgram(GlShaderProgram &&other) noexcept {
+        *this = std::move(other);
+    };
 
-    GlShaderProgram(GlShaderProgram &&) = default;
+    GlShaderProgram &operator=(GlShaderProgram &&other) noexcept {
+        this->obj = std::move(other.obj);
+        return *this;
+    };
 
-    void use();
+    void use() const;
 
-    void setUniform(not_null<const char *> name, int value);
+    void setUniform(not_null<const char *> name, int value) const;
 
-    void setUniform(not_null<const char *> name, float value);
+    void setUniform(not_null<const char *> name, float value) const;
 
-    void setUniform(not_null<const char *> name, const glm::mat3 &value);
+    void setUniform(not_null<const char *> name, const glm::mat3 &value) const;
 
-    void setUniform(not_null<const char *> name, const glm::vec4 &value);
+    void setUniform(not_null<const char *> name, const glm::vec4 &value) const;
 
     // ...
 };
 
-}; // namespace gl_details
-
-class GlDrawableRect : public DrawableRect {
+class GlShaderProgramsManager {
   private:
-    constexpr static std::array<GLuint, 6> INDICES = {0, 1, 3, 1, 2, 3};
-    constexpr static size_t TEXTURE_CHANNELS = 4;
-    constexpr static size_t VERTICES = 4, VERTICES_ARRAY_MAX_SIZE = VERTICES * (3 + 2);
-
-    gl_details::GlArrayObject vao{glDeleteVertexArrays}, vbo{glDeleteBuffers}, ebo{glDeleteBuffers};
-    std::array<GLfloat, VERTICES_ARRAY_MAX_SIZE> vertices;
-    glm::mat3 transform_mat{1};
-
-    gl_details::GlShaderProgram &shader_program;
-
-    ColorF color;
-
-    gl_details::GlArrayObject texture{glDeleteTextures};
-
-    HeapArray<unsigned char> texture_data;
-    Vec2I texture_res;
-    size_t texture_size;
-
-    // use only after construction!
-    bool isTextured() const noexcept {
-        return texture_data != nullptr;
-    }
-
-    // use only after construction!
-    void checkIsTextured() const noexcept {
-        assert(isTextured() && "rectangle is not textured");
-    }
-
-    // use only after construction!
-    void checkIsColored() const noexcept {
-        assert(!isTextured() && "rectangle is not colored");
-    }
-
-    size_t genVertices(const RectPos &pos, bool is_textured);
+    GlShaderProgram colored, textured_argb8888;
 
   public:
-    GlDrawableRect(
-        RectPos pos,
-        gl_details::GlShaderProgram &shader_program,
-        ColorF color,
-        Vec2I texture_res,
-        float z
-    );
+    void init();
 
-    void draw();
+    const GlShaderProgram &getColored() const noexcept {
+        return colored;
+    };
 
-    void setPosition(const RectPos &new_pos);
+    const GlShaderProgram &getTextured() const noexcept {
+        return textured_argb8888;
+    }
+};
 
+// Represents single OpenGL polygon without shaders.
+class GlRectPolygon {
+  private:
+    constexpr static std::array<GLuint, 6> INDICES = {0, 1, 3, 1, 2, 3};
+    constexpr static size_t VERTICES = 4;
+
+    constexpr static size_t POS_COORDS_NUM = 3;
+    constexpr static size_t TEX_COORDS_NUM = 2;
+
+    constexpr static size_t TEX_VERTICES_ARRAY_SIZE = VERTICES * (POS_COORDS_NUM + TEX_COORDS_NUM);
+    constexpr static size_t NOTEX_VERTICES_ARRAY_SIZE = VERTICES * POS_COORDS_NUM;
+
+    constexpr static size_t VERTICES_ARRAY_MAX_SIZE = TEX_VERTICES_ARRAY_SIZE;
+
+    constexpr static auto Z_DEPTH = 256;
+
+    GlObject<&glDeleteVertexArrays> vao;
+    GlObject<&glDeleteBuffers> vbo, ebo;
+
+    glm::mat3 transform_mat{1};
+    std::array<GLfloat, VERTICES_ARRAY_MAX_SIZE> vertices;
+
+    void genVertices(const RectPos &pos, uint8_t z, bool add_texture_coords) noexcept;
+
+  public:
+    GlRectPolygon(const RectPos &pos, uint8_t z, bool add_texture_coords);
+
+    void draw() const;
+
+    // Note: this method does not update the Z order.
+    void setPosition(const RectPos &new_pos, uint8_t z, bool add_texture_coords);
+
+    // Note: this method does not update the Z order.
     void setTransform(const glm::mat3 &mat) noexcept {
         transform_mat = mat;
     }
-
-    void setColor(const Color &color_) noexcept {
-        checkIsColored();
-        color = color_;
-    }
-
-    not_null<void *> getRGBA8TextureData() noexcept {
-        checkIsTextured();
-        return texture_data;
-    };
-
-    void resizeTexture(Vec2I size);
-
-    void flushTexture();
-
-    size_t getPitch() const noexcept {
-        checkIsTextured();
-        return texture_res.x;
-    };
 };
 
-class GlRenderer : public Renderer {
+// TODO: add streaming texture support
+class GlTexture final : public Texture {
+    constexpr static size_t TEXTURE_CHANNELS = 4;
+
+    GlObject<&glDeleteTextures> obj;
+    HeapArray<unsigned char> buf;
+    size_t buf_capacity = 0;
+    Vec2I res;
+    TextureMode mode;
+
+    // === Texture implementation
+
+    void flush() final;
+
+    not_null<unsigned char *> getBuf() noexcept final {
+        return buf;
+    };
+
+    bool waitForSync(std::chrono::nanoseconds timeout) final;
+
+  public:
+    size_t getPitch() const noexcept final {
+        return res.x;
+    };
+
+    Vec2I getResolution() const noexcept final {
+        return res;
+    };
+
+    void resize(Vec2I new_res) final;
+
+    not_null<const unsigned char *> getConstBuf() const noexcept final {
+        return buf;
+    };
+
+    // === other
+
+    GlTexture(Vec2I res, TextureMode mode);
+
+    // Check before calling any other method outside of the class.
+    // Also check before exposing texture's ptr.
+    bool isEnabled() const noexcept {
+        return mode != TextureMode::NO_TEXTURE;
+    }
+
+    void prepareShader(const GlShaderProgramsManager &shp_man) const;
+};
+
+class GlDrawableRect final : public DrawableRect {
+  private:
+    std::reference_wrapper<GlRenderer> renderer;
+    GlTexture texture;
+    GlRectPolygon polygon;
+    ColorF color;
+    float bg_blur_radius;
+    uint8_t z;
+    glm::mat4 transform_mat{1};
+
+  public:
+    GlDrawableRect(std::reference_wrapper<GlRenderer> renderer_, const DrawableRectConfig &config);
+
+    // === DrawableRect implementation
+
+    void setPosition(const RectPos &pos) final {
+        polygon.setPosition(pos, z, texture.isEnabled());
+    }
+
+    void setZIdx(uint8_t z) final {
+        // TODO: implement
+    }
+
+    void setTransform(const glm::mat3 &mat) final {
+        transform_mat = mat;
+    }
+
+    void setColor(const Color &color) noexcept final {
+        this->color = color;
+    }
+
+    void setBackgroundBlurRadius(float value) noexcept final {
+        // TODO: implement blur
+        bg_blur_radius = value;
+    }
+
+    Texture *getTexture() noexcept final {
+        return texture.isEnabled() ? &texture : nullptr;
+    }
+
+    const Texture *getConstTexture() const noexcept final {
+        return texture.isEnabled() ? &texture : nullptr;
+    };
+
+    // === other
+
+    void draw(const GlShaderProgramsManager &shp_man) const;
+};
+
+}; // namespace gl_details
+
+class GlRenderer final : public Renderer {
   private:
     ColorF clear_color;
-    std::vector<weak_ptr<DrawableRect>> rects;
+    mutable std::vector<weak_ptr<gl_details::GlDrawableRect>> rects;
+    /*std::vector<weak_ptr<DrawableRect>> blurred_rects;*/
+    bool enable_blur;
 
-    gl_details::GlShaderProgram *colored_shader_prog, *textured_shader_prog;
+    gl_details::GlShaderProgramsManager shader_programs_manager;
 
     static void handleGlewError(GLenum err);
 
@@ -227,15 +342,16 @@ class GlRenderer : public Renderer {
     );
 
   public:
-    GlRenderer(Color clear_color, bool enable_debug_log);
+    GlRenderer(Color clear_color, bool enable_debug_log, bool enable_blur);
 
-    shared_ptr<DrawableRect> createTexturedRect(const RectPos &pos, const Vec2I size);
+    // === Renderer implementation
 
-    shared_ptr<DrawableRect> createColoredRect(const RectPos &pos, const Color &color);
+    [[nodiscard]]
+    not_null<shared_ptr<DrawableRect>> createRect(const DrawableRectConfig &conf) final;
 
-    void resize(Vec2I frame_buf_size);
+    void resize(Vec2I drawable_area_size) final;
 
-    void draw();
+    void draw() const final;
 };
 
 } // namespace chat::gui::backends

@@ -26,7 +26,7 @@ int main(int, char **) {
         unique_ptr<SystemWindow> sys_win = std::make_unique<GlfwSystemWindow>();
         sys_win->switchContext();
 
-        unique_ptr<Renderer> renderer = std::make_unique<GlRenderer>(Color{0, 0, 0, 1}, true);
+        unique_ptr<Renderer> renderer = std::make_unique<GlRenderer>(Color{0, 0, 0, 1}, true, true);
 
         Window window(std::move(sys_win), std::move(renderer));
 

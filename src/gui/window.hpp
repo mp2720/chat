@@ -11,7 +11,7 @@ class Window {
   private:
     unique_ptr<backends::SystemWindow> system_window;
     unique_ptr<backends::Renderer> renderer;
-    shared_ptr<backends::DrawableRect> texture1, texture2;
+    shared_ptr<backends::DrawableRect> rect1, rect2;
 
     bool need_redraw = true;
     bool can_continue = true;
