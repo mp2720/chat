@@ -235,12 +235,12 @@ GlRectPolygon::GlRectPolygon(const RectPos &pos, uint8_t z, bool add_texture_coo
         GL_ARRAY_BUFFER,
         vertices_arr_size * sizeof(vertices[0]),
         vertices.data(),
-        GL_STATIC_DRAW
+        GL_DYNAMIC_DRAW
     ));
 
     CHAT_GL_CHECK(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo));
     CHAT_GL_CHECK(
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(INDICES), INDICES.begin(), GL_STATIC_DRAW)
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(INDICES), INDICES.begin(), GL_DYNAMIC_DRAW)
     );
 
     if (add_texture_coords) {
