@@ -10,7 +10,7 @@ namespace chat::gui {
 class Window {
   private:
     unique_ptr<backends::SystemWindow> system_window;
-    unique_ptr<backends::Renderer> renderer;
+    unique_ptr<backends::RendererContext> renderer;
     shared_ptr<backends::DrawableRect> rect1, rect2;
 
     bool need_redraw = true;
@@ -23,7 +23,7 @@ class Window {
   public:
     Window(
         unique_ptr<backends::SystemWindow> system_window_,
-        unique_ptr<backends::Renderer> renderer_
+        unique_ptr<backends::RendererContext> renderer_
     );
 
     void update();

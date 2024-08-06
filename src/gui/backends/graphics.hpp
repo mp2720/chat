@@ -6,7 +6,6 @@
 #include <cassert>
 #include <chrono>
 #include <cstddef>
-#include <cstdint>
 #include <exception>
 #include <optional>
 #include <utility>
@@ -101,6 +100,8 @@ class Texture {
     virtual ~Texture() {}
 };
 
+class RendererContext;
+
 class DrawableRect {
   public:
     virtual void setPosition(const RectPos &pos) = 0;
@@ -127,6 +128,8 @@ class DrawableRect {
         return getConstTexture();
     }
 
+    virtual void draw() const = 0;
+
     virtual ~DrawableRect() {}
 };
 
@@ -147,7 +150,8 @@ struct DrawableRectConfig {
     float bg_blur_radius = 0;
 };
 
-class Renderer {
+// Do not delete instance of this class if any `DrawableRect` created by this instance is alive.
+class RendererContext {
   public:
     [[nodiscard]]
     virtual unique_ptr<DrawableRect> createRect(const DrawableRectConfig &conf) = 0;
@@ -156,9 +160,7 @@ class Renderer {
 
     virtual void drawStart() const = 0;
 
-    virtual void drawRect(not_null<const DrawableRect *> rect) const = 0;
-
-    virtual ~Renderer() {}
+    virtual ~RendererContext() {}
 };
 
 } // namespace chat::gui::backends

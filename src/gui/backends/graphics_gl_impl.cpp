@@ -360,12 +360,15 @@ void GlTexture::resize(Vec2I new_res) {
     ));
 }
 
-GlDrawableRect::GlDrawableRect(const DrawableRectConfig &config)
-    : texture(config.texture_res, config.texture_mode),
+GlDrawableRect::GlDrawableRect(GlRendererContext &ctx_, const DrawableRectConfig &config)
+    : ctx(ctx_),
+      texture(config.texture_res, config.texture_mode),
       polygon({config.pos, texture.isEnabled()}),
       color(colorToF(config.color)) {}
 
-void GlDrawableRect::draw(const GlShaderProgramsManager &shp_man) const {
+void GlDrawableRect::draw() const {
+    const auto &shp_man = ctx.getShaderProgramsManager();
+
     if (texture.isEnabled()) {
         texture.prepareShader(shp_man);
     } else {
@@ -376,11 +379,11 @@ void GlDrawableRect::draw(const GlShaderProgramsManager &shp_man) const {
     polygon.draw();
 }
 
-void GlRenderer::handleGlewError(GLenum err) {
+void GlRendererContext::handleGlewError(GLenum err) {
     throw GraphicsException(str(format("GLEW error: %1%") % glewGetErrorString(err)));
 }
 
-void GlRenderer::onGlErrorCallback(
+void GlRendererContext::onGlErrorCallback(
     GLenum source,
     GLenum type,
     [[maybe_unused]] GLuint id,
@@ -389,7 +392,7 @@ void GlRenderer::onGlErrorCallback(
     const GLchar *message,
     [[maybe_unused]] const void *user_param
 ) {
-    const GlRenderer *this_ = static_cast<const GlRenderer *>(user_param);
+    const GlRendererContext *this_ = static_cast<const GlRendererContext *>(user_param);
 
     Logger::Severity logger_severity;
     const char *severity_str;
@@ -463,7 +466,7 @@ void GlRenderer::onGlErrorCallback(
     );
 }
 
-GlRenderer::GlRenderer(Color clear_color_, bool enable_debug_log, bool enable_blur_)
+GlRendererContext::GlRendererContext(Color clear_color_, bool enable_debug_log, bool enable_blur_)
     : clear_color(clear_color_),
       enable_blur(enable_blur_) {
 
@@ -500,21 +503,15 @@ GlRenderer::GlRenderer(Color clear_color_, bool enable_debug_log, bool enable_bl
     shader_programs_manager.init();
 }
 
-unique_ptr<DrawableRect> GlRenderer::createRect(const DrawableRectConfig &conf) {
-    auto ptr = std::make_unique<GlDrawableRect>(conf);
-    return ptr;
+unique_ptr<DrawableRect> GlRendererContext::createRect(const DrawableRectConfig &conf) {
+    return std::make_unique<GlDrawableRect>(*this, conf);
 };
 
-void GlRenderer::resize(Vec2I frame_buf_size) {
+void GlRendererContext::resize(Vec2I frame_buf_size) {
     CHAT_GL_CHECK(glViewport(0, 0, frame_buf_size.x, frame_buf_size.y));
 }
 
-void GlRenderer::drawStart() const {
+void GlRendererContext::drawStart() const {
     glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
     glClear(GL_COLOR_BUFFER_BIT);
 }
-
-void GlRenderer::drawRect(not_null<const DrawableRect *> rect) const {
-    // ???
-    dynamic_cast<const GlDrawableRect *>((const DrawableRect *)rect)->draw(shader_programs_manager);
-};

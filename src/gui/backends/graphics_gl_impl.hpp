@@ -12,7 +12,7 @@
 
 namespace chat::gui::backends {
 
-class GlRenderer;
+class GlRendererContext;
 
 namespace gl_details {
 
@@ -251,6 +251,7 @@ class GlTexture final : public Texture {
 
 class GlDrawableRect final : public DrawableRect {
   private:
+    GlRendererContext &ctx;
     GlTexture texture;
     GlRectPolygon polygon;
     ColorF color;
@@ -258,9 +259,7 @@ class GlDrawableRect final : public DrawableRect {
     glm::mat4 transform_mat{1};
 
   public:
-    GlDrawableRect(const DrawableRectConfig &config);
-
-    void draw(const GlShaderProgramsManager &shp_man) const;
+    GlDrawableRect(GlRendererContext &renderer, const DrawableRectConfig &config);
 
     // === DrawableRect implementation
 
@@ -288,11 +287,13 @@ class GlDrawableRect final : public DrawableRect {
     const Texture *getConstTexture() const noexcept final {
         return texture.isEnabled() ? &texture : nullptr;
     };
+
+    void draw() const final;
 };
 
 }; // namespace gl_details
 
-class GlRenderer final : public Renderer {
+class GlRendererContext final : public RendererContext {
   private:
     ColorF clear_color;
     bool enable_blur;
@@ -311,7 +312,11 @@ class GlRenderer final : public Renderer {
     );
 
   public:
-    GlRenderer(Color clear_color, bool enable_debug_log, bool enable_blur);
+    GlRendererContext(Color clear_color, bool enable_debug_log, bool enable_blur);
+
+    const gl_details::GlShaderProgramsManager &getShaderProgramsManager() const noexcept {
+        return shader_programs_manager;
+    }
 
     // === Renderer implementation
 
@@ -321,8 +326,6 @@ class GlRenderer final : public Renderer {
     void resize(Vec2I drawable_area_size) final;
 
     void drawStart() const final;
-
-    void drawRect(not_null<const DrawableRect *> rect) const final;
 };
 
 } // namespace chat::gui::backends

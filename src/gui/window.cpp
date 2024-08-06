@@ -16,13 +16,10 @@ void Window::resize() {
     Vec2I fb_size = system_window->getFrameBufferSize();
     assert(fb_size.x != 0);
 
-    /*auto texture1 = rect1->requireTexture();*/
-    /*texture1->resize(fb_size / 5);*/
-
     renderer->resize(fb_size);
 }
 
-Window::Window(unique_ptr<SystemWindow> system_window_, unique_ptr<Renderer> renderer_)
+Window::Window(unique_ptr<SystemWindow> system_window_, unique_ptr<RendererContext> renderer_)
     : system_window(std::move(system_window_)),
       renderer(std::move(renderer_)) {
 
@@ -70,8 +67,8 @@ void Window::update() {
         rect1->setPosition(rect1_pos);
 
         renderer->drawStart();
-        renderer->drawRect(rect2.get());
-        renderer->drawRect(rect1.get());
+        rect2->draw();
+        rect1->draw();
     }
 
     system_window->swapBuffers();
