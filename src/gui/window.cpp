@@ -28,7 +28,6 @@ Window::Window(unique_ptr<SystemWindow> system_window_, unique_ptr<Renderer> ren
 
     DrawableRectConfig conf1 = {
         .pos = rect1_pos,
-        .z = 100,
         .texture_mode = backends::TextureMode::STATIC_TEXTURE,
         .texture_res = {1000, 300},
         .color = {255, 0, 0, 255},
@@ -36,7 +35,6 @@ Window::Window(unique_ptr<SystemWindow> system_window_, unique_ptr<Renderer> ren
 
     DrawableRectConfig conf2 = {
         .pos = {{-0.3, -0.3}, {0.8, 0.8}},
-        .z = 100,
         .color = {0, 255, 0, 128},
     };
 

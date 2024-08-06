@@ -138,7 +138,6 @@ enum class TextureMode {
 
 struct DrawableRectConfig {
     RectPos pos{};
-    uint8_t z;
 
     TextureMode texture_mode = TextureMode::NO_TEXTURE;
     Vec2I texture_res{};
