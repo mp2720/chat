@@ -97,14 +97,13 @@ class Texture {
     std::optional<BufferLock> lockBuf() {
         return lockBuf(std::chrono::nanoseconds(0));
     }
+
+    virtual ~Texture() {}
 };
 
 class DrawableRect {
   public:
     virtual void setPosition(const RectPos &pos) = 0;
-
-    // Updates rendering Z order.
-    virtual void setZIdx(uint8_t z) = 0;
 
     // Z order will not be changed even if Z coord is transformed.
     virtual void setTransform(const glm::mat3 &mat) = 0;
@@ -127,6 +126,8 @@ class DrawableRect {
     not_null<const Texture *> requireConstTexture() const {
         return getConstTexture();
     }
+
+    virtual ~DrawableRect() {}
 };
 
 enum class TextureMode {
@@ -137,7 +138,7 @@ enum class TextureMode {
 
 struct DrawableRectConfig {
     RectPos pos{};
-    uint8_t z = 0;
+    uint8_t z;
 
     TextureMode texture_mode = TextureMode::NO_TEXTURE;
     Vec2I texture_res{};
@@ -149,14 +150,16 @@ struct DrawableRectConfig {
 
 class Renderer {
   public:
-    // Caller takes the ownership on the rectangle.
-    // The rectangle will be deleted from draw list automatically if it was destroyed.
     [[nodiscard]]
-    virtual not_null<shared_ptr<DrawableRect>> createRect(const DrawableRectConfig &conf) = 0;
+    virtual unique_ptr<DrawableRect> createRect(const DrawableRectConfig &conf) = 0;
 
     virtual void resize(Vec2I drawable_area_size) = 0;
 
-    virtual void draw() const = 0;
+    virtual void drawStart() const = 0;
+
+    virtual void drawRect(not_null<const DrawableRect *> rect) const = 0;
+
+    virtual ~Renderer() {}
 };
 
 } // namespace chat::gui::backends

@@ -4,14 +4,11 @@
 #include "../vec.hpp"
 #include "graphics.hpp"
 #include "ptr.hpp"
+#include <algorithm>
 #include <array>
-#include <cassert>
 #include <cstddef>
-#include <cstdint>
-#include <functional>
 #include <type_traits>
 #include <utility>
-#include <vector>
 
 namespace chat::gui::backends {
 
@@ -26,6 +23,8 @@ template <typename F> struct GlDeleteFunCaller {
     void operator()(F fun, GLuint id);
 };
 
+// For old GL functions (like `glClear()`) that have known address at compile-time.
+
 template <>
 inline void GlDeleteFunCaller<GlSingleDeleteFun *>::operator()(GlSingleDeleteFun *fun, GLuint id) {
     fun(id);
@@ -35,6 +34,8 @@ template <>
 inline void GlDeleteFunCaller<GlArrayDeleteFun *>::operator()(GlArrayDeleteFun *fun, GLuint id) {
     fun(1, &id);
 }
+
+// For more modern GL functions (like `glDeleteShader()`) that have unknown address at compile-time.
 
 template <>
 inline void
@@ -184,15 +185,15 @@ class GlRectPolygon {
     glm::mat3 transform_mat{1};
     std::array<GLfloat, VERTICES_ARRAY_MAX_SIZE> vertices;
 
-    void genVertices(const RectPos &pos, uint8_t z, bool add_texture_coords) noexcept;
+    void genVertices(const RectPos &pos, bool add_texture_coords) noexcept;
 
   public:
-    GlRectPolygon(const RectPos &pos, uint8_t z, bool add_texture_coords);
+    GlRectPolygon(const RectPos &pos, bool add_texture_coords);
 
     void draw() const;
 
     // Note: this method does not update the Z order.
-    void setPosition(const RectPos &new_pos, uint8_t z, bool add_texture_coords);
+    void setPosition(const RectPos &new_pos, bool add_texture_coords);
 
     // Note: this method does not update the Z order.
     void setTransform(const glm::mat3 &mat) noexcept {
@@ -250,25 +251,21 @@ class GlTexture final : public Texture {
 
 class GlDrawableRect final : public DrawableRect {
   private:
-    std::reference_wrapper<GlRenderer> renderer;
     GlTexture texture;
     GlRectPolygon polygon;
     ColorF color;
     float bg_blur_radius;
-    uint8_t z;
     glm::mat4 transform_mat{1};
 
   public:
-    GlDrawableRect(std::reference_wrapper<GlRenderer> renderer_, const DrawableRectConfig &config);
+    GlDrawableRect(const DrawableRectConfig &config);
+
+    void draw(const GlShaderProgramsManager &shp_man) const;
 
     // === DrawableRect implementation
 
     void setPosition(const RectPos &pos) final {
-        polygon.setPosition(pos, z, texture.isEnabled());
-    }
-
-    void setZIdx(uint8_t z) final {
-        // TODO: implement
+        polygon.setPosition(pos, texture.isEnabled());
     }
 
     void setTransform(const glm::mat3 &mat) final {
@@ -291,10 +288,6 @@ class GlDrawableRect final : public DrawableRect {
     const Texture *getConstTexture() const noexcept final {
         return texture.isEnabled() ? &texture : nullptr;
     };
-
-    // === other
-
-    void draw(const GlShaderProgramsManager &shp_man) const;
 };
 
 }; // namespace gl_details
@@ -302,10 +295,7 @@ class GlDrawableRect final : public DrawableRect {
 class GlRenderer final : public Renderer {
   private:
     ColorF clear_color;
-    mutable std::vector<weak_ptr<gl_details::GlDrawableRect>> rects;
-    /*std::vector<weak_ptr<DrawableRect>> blurred_rects;*/
     bool enable_blur;
-
     gl_details::GlShaderProgramsManager shader_programs_manager;
 
     static void handleGlewError(GLenum err);
@@ -326,11 +316,13 @@ class GlRenderer final : public Renderer {
     // === Renderer implementation
 
     [[nodiscard]]
-    not_null<shared_ptr<DrawableRect>> createRect(const DrawableRectConfig &conf) final;
+    unique_ptr<DrawableRect> createRect(const DrawableRectConfig &conf) final;
 
     void resize(Vec2I drawable_area_size) final;
 
-    void draw() const final;
+    void drawStart() const final;
+
+    void drawRect(not_null<const DrawableRect *> rect) const final;
 };
 
 } // namespace chat::gui::backends

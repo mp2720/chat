@@ -1,13 +1,13 @@
 #include "graphics_gl_impl.hpp"
 
 #include "../gl_include.h"
+#include "gui/backends/graphics.hpp"
 #include "gui/vec.hpp"
 #include "log.hpp"
 #include "ptr.hpp"
 #include <array>
 #include <boost/format.hpp>
 #include <cstddef>
-#include <cstdint>
 #include <glm/gtc/type_ptr.hpp>
 #include <memory>
 
@@ -81,8 +81,8 @@ GlShaderProgram::Shader::Shader(not_null<const char *> src, Type type) {
 GLint GlShaderProgram::getUniformLocation(not_null<const char *> name) const {
     GLint loc;
     CHAT_GL_CHECK(loc = glGetUniformLocation(obj, name));
-    /*if (loc < 0)*/
-    /*    throw GraphicsException(str(format("uniform %1% not found") % name));*/
+    if (loc < 0)
+        throw GraphicsException(str(format("uniform %1% not found") % name));
 
     return loc;
 }
@@ -194,32 +194,31 @@ void GlShaderProgramsManager::init() {
     textured_argb8888 = GlShaderProgram(VERT_TEXTURE_SHADER_SRC, FRAG_TEXTURE_ARGB8888_SHADER_SRC);
 }
 
-void GlRectPolygon::genVertices(const RectPos &pos, uint8_t z, bool add_texture_coords) noexcept {
+void GlRectPolygon::genVertices(const RectPos &pos, bool add_texture_coords) noexcept {
     std::array<GLfloat, VERTICES_ARRAY_MAX_SIZE> vertices_copy;
-    float fz = -static_cast<float>(z) / Z_DEPTH;
 
     // clang-format off
     if (add_texture_coords)
         vertices_copy = {
-            pos.tr.x, pos.tr.y, fz, 1, 1, // top right
-            pos.tr.x, pos.bl.y, fz, 1, 0, // bottom right
-            pos.bl.x, pos.bl.y, fz, 0, 0, // bottom left
-            pos.bl.x, pos.tr.y, fz, 0, 1, // top left
+            pos.tr.x, pos.tr.y, 0, 1, 1, // top right
+            pos.tr.x, pos.bl.y, 0, 1, 0, // bottom right
+            pos.bl.x, pos.bl.y, 0, 0, 0, // bottom left
+            pos.bl.x, pos.tr.y, 0, 0, 1, // top left
         };
     else
         vertices_copy = {
-            pos.tr.x, pos.tr.y, fz, // top right
-            pos.tr.x, pos.bl.y, fz, // bottom right
-            pos.bl.x, pos.bl.y, fz, // bottom left
-            pos.bl.x, pos.tr.y, fz, // top left
+            pos.tr.x, pos.tr.y, 0, // top right
+            pos.tr.x, pos.bl.y, 0, // bottom right
+            pos.bl.x, pos.bl.y, 0, // bottom left
+            pos.bl.x, pos.tr.y, 0, // top left
         };
     // clang-format on
 
     std::copy(vertices_copy.begin(), vertices_copy.end(), vertices.begin());
 }
 
-GlRectPolygon::GlRectPolygon(const RectPos &pos, uint8_t z, bool add_texture_coords) {
-    genVertices(pos, z, add_texture_coords);
+GlRectPolygon::GlRectPolygon(const RectPos &pos, bool add_texture_coords) {
+    genVertices(pos, add_texture_coords);
 
     CHAT_GL_CHECK(glGenVertexArrays(1, &vao.getIdRef()));
     CHAT_GL_CHECK(glGenBuffers(1, &vbo.getIdRef()));
@@ -281,8 +280,8 @@ void GlRectPolygon::draw() const {
     CHAT_GL_CHECK(glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0));
 }
 
-void GlRectPolygon::setPosition(const RectPos &new_pos, uint8_t z, bool add_texture_coords) {
-    genVertices(new_pos, z, add_texture_coords);
+void GlRectPolygon::setPosition(const RectPos &new_pos, bool add_texture_coords) {
+    genVertices(new_pos, add_texture_coords);
 
     size_t vertices_arr_size =
         add_texture_coords ? TEX_VERTICES_ARRAY_SIZE : NOTEX_VERTICES_ARRAY_SIZE;
@@ -361,13 +360,9 @@ void GlTexture::resize(Vec2I new_res) {
     ));
 }
 
-GlDrawableRect::GlDrawableRect(
-    std::reference_wrapper<GlRenderer> renderer_,
-    const DrawableRectConfig &config
-)
-    : renderer(renderer_),
-      texture(config.texture_res, config.texture_mode),
-      polygon({config.pos, config.z, texture.isEnabled()}),
+GlDrawableRect::GlDrawableRect(const DrawableRectConfig &config)
+    : texture(config.texture_res, config.texture_mode),
+      polygon({config.pos, texture.isEnabled()}),
       color(colorToF(config.color)) {}
 
 void GlDrawableRect::draw(const GlShaderProgramsManager &shp_man) const {
@@ -495,7 +490,6 @@ GlRenderer::GlRenderer(Color clear_color_, bool enable_debug_log, bool enable_bl
         }
     }
 
-    glEnable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
@@ -506,52 +500,21 @@ GlRenderer::GlRenderer(Color clear_color_, bool enable_debug_log, bool enable_bl
     shader_programs_manager.init();
 }
 
-not_null<shared_ptr<DrawableRect>> GlRenderer::createRect(const DrawableRectConfig &conf) {
-    auto ptr = std::make_shared<GlDrawableRect>(*this, conf);
-
-    /*if (conf.bg_blur_radius != 0 && enable_blur)*/
-    /*    blurred_rects.emplace_back(ptr);*/
-    /*else*/
-
-    rects.emplace_back(ptr);
-
+unique_ptr<DrawableRect> GlRenderer::createRect(const DrawableRectConfig &conf) {
+    auto ptr = std::make_unique<GlDrawableRect>(conf);
     return ptr;
-}
-
-// shared_ptr<DrawableRect>
-// GlRenderer::createTexturedRect(const RectF &pos, float z, const Vec2I res) {
-//     shared_ptr<DrawableRect> ptr =
-//         std::make_shared<GlDrawableRect>(pos, *textured_shader_prog, ColorF{}, res, 0);
-//
-//     rects.emplace_back(ptr);
-//
-//     return ptr;
-// }
-//
-// shared_ptr<DrawableRect>
-// GlRenderer::createColoredRect(const RectF &pos, const Color &color, float z) {
-//     shared_ptr<DrawableRect> ptr =
-//         std::make_shared<GlDrawableRect>(pos, *colored_shader_prog, colorToF(color), Vec2I{}, z);
-//
-//     rects.emplace_back(ptr);
-//
-//     return ptr;
-// }
+};
 
 void GlRenderer::resize(Vec2I frame_buf_size) {
     CHAT_GL_CHECK(glViewport(0, 0, frame_buf_size.x, frame_buf_size.y));
 }
 
-void GlRenderer::draw() const {
+void GlRenderer::drawStart() const {
     glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    for (auto it = rects.begin(); it != rects.end();) {
-        if (auto rect = it->lock()) {
-            rect->draw(shader_programs_manager);
-            ++it;
-        } else {
-            it = rects.erase(it);
-        }
-    }
+    glClear(GL_COLOR_BUFFER_BIT);
 }
+
+void GlRenderer::drawRect(not_null<const DrawableRect *> rect) const {
+    // ???
+    dynamic_cast<const GlDrawableRect *>((const DrawableRect *)rect)->draw(shader_programs_manager);
+};

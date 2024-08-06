@@ -31,12 +31,12 @@ Window::Window(unique_ptr<SystemWindow> system_window_, unique_ptr<Renderer> ren
         .z = 100,
         .texture_mode = backends::TextureMode::STATIC_TEXTURE,
         .texture_res = {1000, 300},
-        .color = {255, 0, 0, 128},
+        .color = {255, 0, 0, 255},
     };
 
     DrawableRectConfig conf2 = {
         .pos = {{-0.3, -0.3}, {0.8, 0.8}},
-        .z = 200,
+        .z = 100,
         .color = {0, 255, 0, 128},
     };
 
@@ -66,10 +66,14 @@ void Window::update() {
         rect1_pos.bl.x = sin(prev_update_time.count() / 1000.);
         rect1_pos.tr.x = -rect1_pos.bl.x;
 
+        rect1_pos.tr.y = sin(prev_update_time.count() / 1000.);
+        rect1_pos.bl.y = -rect1_pos.tr.y;
+
         rect1->setPosition(rect1_pos);
 
-        /*texture1->setPosition(canvas_pos);*/
-        renderer->draw();
+        renderer->drawStart();
+        renderer->drawRect(rect2.get());
+        renderer->drawRect(rect1.get());
     }
 
     system_window->swapBuffers();
