@@ -8,13 +8,10 @@ setup:
 	meson setup ${BUILD_DIR}/ --buildtype=debug -Db_coverage=true
 
 run: build
-	${BUILD_DIR}/src/chat
+	${BUILD_DIR}/src/demo
 
-run_echo: build
-	${BUILD_DIR}/src/echo
-
-run_echo_opus: build
-	${BUILD_DIR}/src/echo_opus
+run_server: build
+	${BUILD_DIR}/src/demo_server
 
 debug: build
 	gdb ${BUILD_DIR}/src/chat
@@ -24,11 +21,3 @@ build:
 
 clean:
 	rm -rf ${BUILD_DIR}/
-
-test: build
-	meson test -C ${BUILD_DIR}
-
-cov: test
-	mkdir -p coverage
-	gcovr -e subprojects -e src/main.cpp --html-details coverage/coverage.html\
-		--html-theme github.dark-blue

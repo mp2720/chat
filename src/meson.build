@@ -7,12 +7,9 @@ link_args = []
 cpp_compiler = meson.get_compiler('cpp')
 
 chat_deps = [
-  dependency('gl'),
-  dependency('glfw3'),
   dependency('portaudiocpp'),
   dependency('opus'),
   dependency('boost'),
-  utfcpp_dep,
   rnnoise_dep,
 ]
 
@@ -24,8 +21,6 @@ endif
 chat_lib = static_library(
   'chat_lib',
   [
-    'gui/io.cpp',
-    'gui/gui.cpp',
     'log.cpp',
     'err.cpp',
     'audio/lib.cpp',
@@ -47,12 +42,6 @@ chat_lib_dep = declare_dependency(
   link_with: chat_lib,
   dependencies: chat_deps,
   link_args: link_args,
-)
-
-executable(
-  'chat',
-  ['main.cpp'],
-  dependencies: chat_lib_dep,
 )
 
 executable(
