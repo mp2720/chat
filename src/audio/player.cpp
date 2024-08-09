@@ -74,13 +74,9 @@ void Player::playerThread() {
 
         case State::Stopped: {
             local_d->src->unlockState();
-            {
-                local_d->out->stop();
-            }
+            { local_d->out->stop(); }
             local_d->src->waitActive();
-            {
-                local_d->out->start();
-            }
+            { local_d->out->start(); }
         } break;
 
         case State::Finalized: {
@@ -113,7 +109,7 @@ PaOutput::PaOutput(int channels) : chans(channels) {
 }
 
 int PaOutput::channels() const {
-    return chans; 
+    return chans;
 }
 
 void PaOutput::stop() {
@@ -135,7 +131,7 @@ void PaOutput::write(Frame &frame) {
     try {
         stream.write(frame.data(), FRAME_SIZE);
     } catch (portaudio::PaException &ex) {
-        CHAT_LOGW(std::string("portaudio output:") + ex.what());
+        CHAT_LOGV(std::string("portaudio output: ") + ex.what());
     }
 }
 
