@@ -1,11 +1,12 @@
 inc = include_directories('.')
 
-cpp_args = ['-Wall', '-Wextra', '-Og']
+cpp_args = ['-Wall', '-Wextra', '-Og', '-g']
 link_args = ['-rdynamic']
 
 chat_deps = [
   dependency('gl'),
   dependency('glfw3'),
+  dependency('sdl2'),
   dependency('portaudiocpp'),
   dependency('opus'),
   dependency('boost'),
@@ -24,9 +25,11 @@ chat_lib = static_library(
     'audio/lib.cpp',
     'audio/player.cpp',
     'audio/recorder.cpp',
-    'audio/rnnoise_dsp.cpp',
-    'audio/volume_dsp.cpp',
+    'audio/dsp.cpp',
+    'audio/rtp_jitter.cpp',
+    'audio/rtp_sender.cpp',
     'audio/codec.cpp',
+    'audio/bufsrc.cpp',
   ],
   dependencies: chat_deps,
   cpp_args: cpp_args,
@@ -56,4 +59,16 @@ executable(
   'echo_opus',
   ['audio/examples/echo_opus.cpp'],
   dependencies: chat_lib_dep,
+)
+
+executable(
+  'demo',
+  ['audio/examples/demo.cpp'],
+  dependencies: chat_lib_dep,
+)
+
+executable(
+  'demo_serv',
+  ['audio/examples/demo_serv.cpp'],
+  dependencies: dependency('boost'),
 )

@@ -4,6 +4,7 @@
 #include <cassert>
 #include <cstdio>
 #include <iostream>
+#include <memory>
 #include <portaudio.h>
 #include <unistd.h>
 
@@ -19,8 +20,8 @@ int main() {
     err::init();
     initialize();
     mic->dsps.push_back(std::make_shared<RnnoiseDSP>());
-
-    Player p(mic);
+    auto po = std::make_shared<PaOutput>(mic->channels());
+    Player p(mic, po);
     p.start();
     while (1) {
         Pa_Sleep(100);

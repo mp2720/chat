@@ -16,8 +16,8 @@
 
 namespace aud {
 
-inline constexpr int SAMPLE_RATE = 48000; // 48000 KHz
-inline constexpr size_t FRAME_SIZE = 480; // 480
+inline constexpr int SAMPLE_RATE = 48000;
+inline constexpr size_t FRAME_SIZE = 960;
 
 using portaudio::Device;
 using std::atomic;
@@ -70,30 +70,54 @@ class Source : public Controllable {
 
 class RawSource : public Source {
   public:
-    virtual bool read(Frame &frame) = 0;
+    virtual void read(Frame &frame) = 0;
     virtual ~RawSource() = default;
 };
 
-class Player : public Controllable, public Reconfigurable {
+class Output {
   public:
-    Player(shared_ptr<RawSource> src);
+    virtual void stop() = 0;
+    virtual void start() = 0;
+    virtual int channels() const = 0;
+    virtual void write(Frame &frame) = 0;
+    virtual ~Output() = default;
+};
+
+class PaOutput : public Output, public Reconfigurable {
+  public:
+    PaOutput(int channels);
+    void stop() override;
+    void start() override;
+    int channels() const override;
+    void write(Frame &frame) override;
+    void reconf() override;
+  private:
+    std::mutex mux;
+    const int chans; 
+    portaudio::BlockingStream stream;
+};
+
+class Player : public Controllable {
+  public:
+    Player(shared_ptr<RawSource> src, shared_ptr<Output> out);
     ~Player();
     void setVolume(float percentage); // 0 - 100
     float getVolume();                // 0 - 100
     void start() override;
     void stop() override;
     State state() override;
-    void reconf() override;
-    std::function<void(Player &)> endOfSourceCallback;
+    std::function<void()> endOfSourceCallback;
 
   private:
-    shared_ptr<bool> deleteFlag;
-    std::mutex mux;
-    atomic<float> volume = 1; // 100%
-    shared_ptr<RawSource> src;
-    std::thread thrd;
-    void tfunc();
-    portaudio::BlockingStream stream;
+    struct PlayerData {
+        bool deleteFlag = false;
+        atomic<float> volume = 1; // 100%
+        shared_ptr<RawSource> src;
+        shared_ptr<Output> out;
+        std::thread thrd;
+    };
+    std::shared_ptr<PlayerData> d;
+    void playerThread();
 };
 
 class DSP {
@@ -134,7 +158,7 @@ class Recorder : public RawSource, public Reconfigurable {
     void unlockState() override;
     void start() override;
     void stop() override;
-    bool read(Frame &frame) override;
+    void read(Frame &frame) override;
     State state() override;
     void waitActive() override;
     int channels() const override;
