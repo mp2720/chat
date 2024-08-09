@@ -1,18 +1,24 @@
 inc = include_directories('.')
 
 cpp_args = ['-Wall', '-Wextra', '-Og', '-g']
-link_args = ['-rdynamic']
+#link_args = ['-rdynamic']
+link_args = []
+
+cpp_compiler = meson.get_compiler('cpp')
 
 chat_deps = [
   dependency('gl'),
   dependency('glfw3'),
-  dependency('sdl2'),
   dependency('portaudiocpp'),
   dependency('opus'),
   dependency('boost'),
   utfcpp_dep,
   rnnoise_dep,
 ]
+
+if target_machine.system() == 'windows'
+  chat_deps += cpp_compiler.find_library('ws2_32', required: true)
+endif
 
 # for use in tests
 chat_lib = static_library(
@@ -70,5 +76,5 @@ executable(
 executable(
   'demo_serv',
   ['audio/examples/demo_serv.cpp'],
-  dependencies: dependency('boost'),
+  dependencies: chat_lib_dep,
 )

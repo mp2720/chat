@@ -30,7 +30,7 @@
 
 #include "rtp_jitter.hpp"
 #include "log.hpp"
-#include <arpa/inet.h>
+#include <boost/asio.hpp>
 #include <boost/format/format_fwd.hpp>
 #include <cmath>
 #include <cstdint>

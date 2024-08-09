@@ -8,7 +8,6 @@
 #include <boost/format/format_fwd.hpp>
 #include <cstring>
 #include <memory>
-#include <netinet/in.h>
 
 using namespace aud;
 

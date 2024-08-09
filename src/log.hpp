@@ -6,6 +6,10 @@
 #include <mutex>
 #include <ostream>
 
+#ifdef ERROR
+#undef ERROR
+#endif
+
 namespace chat {
 
 class Logger {
