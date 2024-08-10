@@ -1,8 +1,8 @@
 #pragma once
 
-#include "../gl_include.h"
+#include "../renderer.hpp"
 #include "../vec.hpp"
-#include "graphics.hpp"
+#include "GL/glew.h"
 #include "ptr.hpp"
 #include <algorithm>
 #include <array>
@@ -206,7 +206,7 @@ class GlTexture final : public Texture {
     constexpr static size_t TEXTURE_CHANNELS = 4;
 
     GlObject<&glDeleteTextures> obj;
-    HeapArray<unsigned char> buf;
+    unique_ptr<unsigned char[]> buf;
     size_t buf_capacity = 0;
     Vec2I res;
     TextureMode mode;
@@ -216,7 +216,7 @@ class GlTexture final : public Texture {
     void flush() final;
 
     not_null<unsigned char *> getBuf() noexcept final {
-        return buf;
+        return buf.get();
     };
 
     bool waitForSync(std::chrono::nanoseconds timeout) final;
@@ -233,7 +233,7 @@ class GlTexture final : public Texture {
     void resize(Vec2I new_res) final;
 
     not_null<const unsigned char *> getConstBuf() const noexcept final {
-        return buf;
+        return buf.get();
     };
 
     // === other

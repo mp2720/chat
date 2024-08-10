@@ -1,7 +1,6 @@
-#include "graphics_gl_impl.hpp"
+#include "renderer_gl_impl.hpp"
 
-#include "../gl_include.h"
-#include "gui/backends/graphics.hpp"
+#include "gui/renderer.hpp"
 #include "gui/vec.hpp"
 #include "log.hpp"
 #include "ptr.hpp"
@@ -11,13 +10,12 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <memory>
 
-using namespace chat;
-using namespace gui;
-using namespace backends;
+using namespace chat::gui::backends;
 using namespace gl_details;
 
 using boost::str, boost::format;
-using chat::Logger;
+using chat::Logger, chat::unique_ptr, chat::not_null;
+using chat::gui::GraphicsException, chat::gui::RendererContext, chat::gui::DrawableRect;
 
 // TODO: просмотреть вызовы функций, обёрнутые в CHAT_GL_CHECK. Возможно не все из них нужно
 // TODO: проверять.
@@ -298,7 +296,7 @@ void GlRectPolygon::setPosition(const RectPos &new_pos, bool add_texture_coords)
 void GlTexture::flush() {
     CHAT_GL_CHECK(glBindTexture(GL_TEXTURE_2D, obj));
     CHAT_GL_CHECK(
-        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, res.x, res.y, GL_RGBA, GL_UNSIGNED_BYTE, buf)
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, res.x, res.y, GL_RGBA, GL_UNSIGNED_BYTE, buf.get())
     );
 }
 
@@ -331,11 +329,19 @@ GlTexture::GlTexture(Vec2I res_, TextureMode mode_)
     CHAT_GL_CHECK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
 
     buf_capacity = static_cast<size_t>(res.x * res.y) * sizeof(unsigned char) * TEXTURE_CHANNELS;
-    buf = HeapArray<unsigned char>(buf_capacity);
+    buf = unique_ptr<unsigned char[]>(new unsigned char[buf_capacity]);
 
-    CHAT_GL_CHECK(
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, res.x, res.y, 0, GL_RGBA, GL_UNSIGNED_BYTE, buf)
-    );
+    CHAT_GL_CHECK(glTexImage2D(
+        GL_TEXTURE_2D,
+        0,
+        GL_RGBA,
+        res.x,
+        res.y,
+        0,
+        GL_RGBA,
+        GL_UNSIGNED_BYTE,
+        buf.get()
+    ));
 }
 
 void GlTexture::resize(Vec2I new_res) {
@@ -344,7 +350,7 @@ void GlTexture::resize(Vec2I new_res) {
     size_t new_buf_size = static_cast<size_t>(new_res.x * new_res.y) * TEXTURE_CHANNELS;
     if (new_buf_size > buf_capacity) {
         buf_capacity = new_buf_size;
-        buf = HeapArray<unsigned char>(new_buf_size);
+        buf = unique_ptr<unsigned char[]>(new unsigned char[new_buf_size]);
     }
 
     CHAT_GL_CHECK(glTexImage2D(
@@ -356,7 +362,7 @@ void GlTexture::resize(Vec2I new_res) {
         0,
         GL_RGBA,
         GL_UNSIGNED_BYTE,
-        buf
+        buf.get()
     ));
 }
 
@@ -514,4 +520,12 @@ void GlRendererContext::resize(Vec2I frame_buf_size) {
 void GlRendererContext::drawStart() const {
     glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
     glClear(GL_COLOR_BUFFER_BIT);
+}
+
+unique_ptr<RendererContext> chat::gui::makeGlRendererContext(const RendererConfig &config) {
+    return std::make_unique<GlRendererContext>(
+        config.clear_color,
+        config.enable_debug_log,
+        config.enable_blur
+    );
 }

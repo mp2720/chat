@@ -1,31 +1,28 @@
-#include "window.hpp"
-#include "gui/backends/graphics.hpp"
-#include "gui/backends/sys.hpp"
-#include "gui/vec.hpp"
+#include "gui.hpp"
 
+#include "gui/vec.hpp"
 #include <cassert>
 #include <chrono>
 #include <cstdlib>
 
 using namespace chat::gui;
-using namespace backends;
 
 static RectPos rect1_pos{{-0.5, -0.5}, {0.5, 0.5}};
 
-void Window::resize() {
-    Vec2I fb_size = system_window->getFrameBufferSize();
+void Gui::resize() {
+    Vec2I fb_size = system_ctx->getFrameBufferSize();
     assert(fb_size.x != 0);
 
-    renderer->resize(fb_size);
+    renderer_ctx->resize(fb_size);
 }
 
-Window::Window(unique_ptr<SystemWindow> system_window_, unique_ptr<RendererContext> renderer_)
-    : system_window(std::move(system_window_)),
-      renderer(std::move(renderer_)) {
+Gui::Gui(unique_ptr<Window> system_ctx_, unique_ptr<RendererContext> renderer_ctx)
+    : system_ctx(std::move(system_ctx_)),
+      renderer_ctx(std::move(renderer_ctx)) {
 
     DrawableRectConfig conf1 = {
         .pos = rect1_pos,
-        .texture_mode = backends::TextureMode::STATIC_TEXTURE,
+        .texture_mode = TextureMode::STATIC_TEXTURE,
         .texture_res = {1000, 300},
         .color = {255, 0, 0, 255},
     };
@@ -35,8 +32,8 @@ Window::Window(unique_ptr<SystemWindow> system_window_, unique_ptr<RendererConte
         .color = {0, 255, 0, 128},
     };
 
-    rect1 = renderer->createRect(conf1);
-    rect2 = renderer->createRect(conf2);
+    rect1 = renderer_ctx->createRect(conf1);
+    rect2 = renderer_ctx->createRect(conf2);
 
     auto texture1 = rect1->requireTexture();
 
@@ -47,17 +44,15 @@ Window::Window(unique_ptr<SystemWindow> system_window_, unique_ptr<RendererConte
     }
 }
 
-void Window::update() {
-    can_continue = !system_window->shouldClose();
+void Gui::update() {
+    can_continue = !system_ctx->shouldClose();
     if (!can_continue)
         return;
 
-    system_window->switchContext();
-
-    if (system_window->isResizeRequried())
+    if (system_ctx->isResizeRequried())
         resize();
 
-    if (system_window->isResizeRequried() || system_window->isRefreshRequried()) {
+    if (system_ctx->isResizeRequried() || system_ctx->isRefreshRequried()) {
         rect1_pos.bl.x = sin(prev_update_time.count() / 1000.);
         rect1_pos.tr.x = -rect1_pos.bl.x;
 
@@ -66,14 +61,14 @@ void Window::update() {
 
         rect1->setPosition(rect1_pos);
 
-        renderer->drawStart();
+        renderer_ctx->drawStart();
         rect2->draw();
         rect1->draw();
     }
 
-    system_window->swapBuffers();
+    system_ctx->swapBuffers();
 
-    system_window->update();
+    system_ctx->update();
 
     // need_redraw = ...
 

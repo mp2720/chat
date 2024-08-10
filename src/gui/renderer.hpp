@@ -1,8 +1,8 @@
 #pragma once
 
-#include "../vec.hpp"
 #include "err.hpp"
 #include "ptr.hpp"
+#include "vec.hpp"
 #include <cassert>
 #include <chrono>
 #include <cstddef>
@@ -10,7 +10,7 @@
 #include <optional>
 #include <utility>
 
-namespace chat::gui::backends {
+namespace chat::gui {
 
 class GraphicsException : public StringException {
   public:
@@ -34,6 +34,7 @@ class Texture {
   public:
     // Exception safe: dtor execution performs a flush unless uncaught exception is thrown between
     // ctor and dtor calls. Note that flush may throw.
+    // Do not delete the texture before the `BufferLock` instance destruction!
     class BufferLock {
         Texture *texture = nullptr;
         int uncaught_exceptions_cnt;
@@ -84,6 +85,9 @@ class Texture {
     virtual not_null<const unsigned char *> getConstBuf() const = 0;
 
     // Get buffer locker that will automatically flush the texture's content on destruction.
+    // Note that the fact that timeout is in nanoseconds does not imply that this function has true
+    // nanosecond granularity in its timeout; you are only guaranteed that at least that much time
+    // will pass.
     [[nodiscard]]
     std::optional<BufferLock> lockBuf(std::chrono::nanoseconds timeout) {
         if (!waitForSync(timeout))
@@ -100,13 +104,10 @@ class Texture {
     virtual ~Texture() {}
 };
 
-class RendererContext;
-
 class DrawableRect {
   public:
     virtual void setPosition(const RectPos &pos) = 0;
 
-    // Z order will not be changed even if Z coord is transformed.
     virtual void setTransform(const glm::mat3 &mat) = 0;
 
     // Takes effect only if NO_TEXTURE is a texture mode.
@@ -150,9 +151,12 @@ struct DrawableRectConfig {
     float bg_blur_radius = 0;
 };
 
-// Do not delete instance of this class if any `DrawableRect` created by this instance is alive.
+// Do not delete instance of this class if any `DrawableRect` or `DrawableRectCreator` pointing to
+// this instance is alive.
 class RendererContext {
   public:
+    // Create drawable rectangle that is ready for rendering by calling `draw()` method.
+    // Never returns null.
     [[nodiscard]]
     virtual unique_ptr<DrawableRect> createRect(const DrawableRectConfig &conf) = 0;
 
@@ -163,4 +167,34 @@ class RendererContext {
     virtual ~RendererContext() {}
 };
 
-} // namespace chat::gui::backends
+// Wrapper around the `RendererContext` that allows only `DrawableRect` creation and hides other
+// virtual methods.
+// Never returns nullptr.
+class DrawableRectCreator {
+  private:
+    not_null<RendererContext *> ctx;
+
+  public:
+    DrawableRectCreator(not_null<RendererContext *> ctx_)
+        : ctx(ctx_) {};
+
+    unique_ptr<DrawableRect> operator()(const DrawableRectConfig &conf) {
+        return ctx->createRect(conf);
+    }
+};
+
+struct RendererConfig {
+    Color clear_color{0, 0, 0, 1};
+    bool enable_debug_log = false, enable_blur = true;
+};
+
+// By declaring `createXXXRendererContext()` methods here we can avoid exposing
+// implementation-dependent headers.
+// These methods should never return null.
+
+// defined in `renderer_gl_impl.cpp`
+// Never returns null
+[[nodiscard]]
+unique_ptr<RendererContext> makeGlRendererContext(const RendererConfig &config);
+
+} // namespace chat::gui
