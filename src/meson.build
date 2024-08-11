@@ -1,7 +1,7 @@
 inc = include_directories('.')
 
 cpp_args = ['-Wall', '-Wextra', '-Og', '-g']
-#link_args = ['-rdynamic']
+link_args = ['-rdynamic']
 link_args = []
 
 cpp_compiler = meson.get_compiler('cpp')
@@ -70,6 +70,12 @@ executable(
 executable(
   'demo',
   ['audio/examples/demo.cpp'],
+  dependencies: chat_lib_dep,
+)
+
+executable(
+  'demo_no_rtp',
+  ['audio/examples/demo_no_rtp.cpp'],
   dependencies: chat_lib_dep,
 )
 

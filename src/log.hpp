@@ -6,7 +6,7 @@
 #include <mutex>
 #include <ostream>
 
-#ifdef ERROR
+#ifdef ERROR //windows moment
 #undef ERROR
 #endif
 
