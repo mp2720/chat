@@ -1,5 +1,5 @@
 #include "audio/audio.hpp"
-#include "audio/codec.hpp"
+#include "audio/codec.cpp"
 #include "log.hpp"
 #include <cassert>
 #include <cstdio>
@@ -20,9 +20,10 @@ int main() {
     global_logger.setOutput(&std::cerr);
     initialize();
     mic->dsps.push_back(std::make_shared<RnnoiseDSP>());
-    shared_ptr<Encoder> enc = std::make_shared<Encoder>(mic, EncoderPreset::Voise);
-    shared_ptr<Decoder> dec = std::make_shared<Decoder>(enc);
-    Player p(dec);
+    auto enc = std::make_shared<OpusEncSrc>(mic, EncoderPreset::Voise);
+    auto dec = std::make_shared<OpusDecSrc>(enc);
+    auto po = std::make_shared<PaOutput>(mic->channels());
+    Player p(dec, po);
     p.start();
     while (1) {
         Pa_Sleep(1000);

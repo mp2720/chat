@@ -4,6 +4,7 @@
 #include "opus_defines.h"
 #include <cassert>
 #include <cstddef>
+#include <cstdint>
 
 using namespace aud;
 
@@ -29,17 +30,15 @@ bool OpusException::operator!=(const OpusException &rhs) const {
     return err != rhs.err;
 }
 
-Encoder::Encoder(shared_ptr<RawSource> src, EncoderPreset ep) : src(src) {
-    assert(src);
+OpusEnc::OpusEnc(EncoderPreset ep, int channels) {
     int application;
     int bitrate;
-    int channels = src->channels();
     if (ep == EncoderPreset::Voise) {
         application = OPUS_APPLICATION_VOIP;
-        bitrate = 32768; // bit/s
+        bitrate = 24576; // bit/s
     } else {
         application = OPUS_APPLICATION_AUDIO;
-        bitrate = 131072;
+        bitrate = 98304;
     }
     int err;
     enc = opus_encoder_create(aud::SAMPLE_RATE, channels, application, &err);
@@ -50,53 +49,84 @@ Encoder::Encoder(shared_ptr<RawSource> src, EncoderPreset ep) : src(src) {
     if (err < 0) {
         throw OpusException(err);
     }
+
+    if (ep == EncoderPreset::Voise) {
+        err = opus_encoder_ctl(enc, OPUS_SET_FORCE_CHANNELS(1));
+        if (err < 0) {
+            throw OpusException(err);
+        }
+        err = opus_encoder_ctl(enc, OPUS_SET_INBAND_FEC(1));
+        if (err < 0) {
+            throw OpusException(err);
+        }
+    }
 }
 
-Encoder::~Encoder() {
+OpusEnc::~OpusEnc() {
     opus_encoder_destroy(enc);
 }
 
-void Encoder::encode(std::vector<uint8_t> &block) {
-    src->read(buf);
-    block.resize(MAX_ENCODER_BLOCK_SIZE);
+void OpusEnc::encode(Frame &in, std::vector<uint8_t> &out, size_t max_size) {
+    out.resize(max_size);
     int n_or_err =
-        opus_encode_float(enc, buf.data(), FRAME_SIZE, block.data(), MAX_ENCODER_BLOCK_SIZE);
+        opus_encode_float(enc, in.data(), FRAME_SIZE, out.data(), max_size);
     if (n_or_err < 0) {
         throw OpusException(n_or_err);
     }
-    block.resize(n_or_err);
+    out.resize(n_or_err);
 }
 
-void Encoder::lockState() {
+void OpusEnc::setPacketLossPrec(int perc) {
+    int err = opus_encoder_ctl(enc, OPUS_SET_PACKET_LOSS_PERC(perc));
+    if (err < 0) {
+        throw OpusException(err);
+    }
+}
+
+void OpusEncSrc::setPacketLossPrec(int perc) {
+    enc.setPacketLossPrec(perc);
+}
+
+OpusEncSrc::OpusEncSrc(shared_ptr<RawSource> src, EncoderPreset ep)
+    : enc(ep, src->channels()), src(src) {
+    assert(src);
+}
+
+void OpusEncSrc::encode(std::vector<uint8_t> &block) {
+    src->read(buf);
+    enc.encode(buf, block);
+}
+
+void OpusEncSrc::lockState() {
     src->lockState();
 }
 
-void Encoder::unlockState() {
+void OpusEncSrc::unlockState() {
     src->unlockState();
 }
 
-void Encoder::start() {
+void OpusEncSrc::start() {
     src->start();
 }
 
-void Encoder::stop() {
+void OpusEncSrc::stop() {
     src->stop();
 }
 
-State Encoder::state() {
+State OpusEncSrc::state() {
     return src->state();
 }
 
-void Encoder::waitActive() {
+void OpusEncSrc::waitActive() {
     src->waitActive();
 }
 
-int Encoder::channels() const {
+int OpusEncSrc::channels() const {
     int ch = src->channels();
     return ch;
 }
 
-Decoder::Decoder(shared_ptr<EncodedSource> src) : src(src) {
+OpusDecSrc::OpusDecSrc(shared_ptr<EncodedSource> src) : src(src) {
     assert(src);
     int err;
     dec = opus_decoder_create(SAMPLE_RATE, src->channels(), &err);
@@ -105,46 +135,111 @@ Decoder::Decoder(shared_ptr<EncodedSource> src) : src(src) {
     }
 }
 
-Decoder::~Decoder() {
+OpusDecSrc::~OpusDecSrc() {
     opus_decoder_destroy(dec);
 }
 
-bool Decoder::read(Frame &frame) {
-    src->encode(buf);
+void OpusDecSrc::readLoss(Frame &frame) {
     frame.resize(FRAME_SIZE * src->channels());
-    int n_or_err = opus_decode_float(dec, buf.data(), buf.size(), frame.data(), FRAME_SIZE, false);
+    int n_or_err = opus_decode_float(dec, nullptr, 0, frame.data(), FRAME_SIZE, 0);
     if (n_or_err < 0) {
         throw OpusException(n_or_err);
     }
-    assert((size_t)n_or_err == FRAME_SIZE * src->channels() && "decoder must return full frame");
-    return true;
+    assert(
+        (size_t)n_or_err == FRAME_SIZE * src->channels() && "decoder must return full frame"
+    );
 }
 
-void Decoder::lockState() {
+void OpusDecSrc::readNormal(Frame &frame) {
+    frame.resize(FRAME_SIZE * src->channels());
+    int n_or_err = opus_decode_float(dec, buf.data(), buf.size(), frame.data(), FRAME_SIZE, 0);
+    if (n_or_err < 0) {
+        throw OpusException(n_or_err);
+    }
+    assert(
+        (size_t)n_or_err == FRAME_SIZE * src->channels() && "decoder must return full frame"
+    );
+}
+
+void OpusDecSrc::readFeh(Frame &frame) {
+    frame.resize(FRAME_SIZE * src->channels());
+    int n_or_err =
+        opus_decode_float(dec, fehBuf.data(), fehBuf.size(), frame.data(), FRAME_SIZE, 1);
+    if (n_or_err < 0) {
+        throw OpusException(n_or_err);
+    }
+    assert(
+        (size_t)n_or_err == FRAME_SIZE * src->channels() && "decoder must return full frame"
+    );
+}
+
+void OpusDecSrc::readNoFeh(Frame &frame) {
+    frame.resize(FRAME_SIZE * src->channels());
+    int n_or_err =
+        opus_decode_float(dec, fehBuf.data(), fehBuf.size(), frame.data(), FRAME_SIZE, 0);
+    if (n_or_err < 0) {
+        throw OpusException(n_or_err);
+    }
+    assert(
+        (size_t)n_or_err == FRAME_SIZE * src->channels() && "decoder must return full frame"
+    );
+}
+
+void OpusDecSrc::read(Frame &frame) {
+    if (!fehFlag) {
+        src->encode(buf);
+        if (buf.empty()) {
+            src->encode(fehBuf);
+            if (fehBuf.empty()) {
+                readLoss(frame);
+            } else {
+                readFeh(frame);
+            }
+            fehFlag = 1;
+        } else {
+            readNormal(frame);
+        }
+    } else {
+        if (fehBuf.empty()) {
+            src->encode(fehBuf);
+            if (fehBuf.empty()) {
+                readLoss(frame);
+            } else {
+                readFeh(frame);
+            }
+            fehFlag = 1;
+        } else {
+            readNoFeh(frame);
+            fehFlag = 0;
+        }
+    }
+}
+
+void OpusDecSrc::lockState() {
     src->lockState();
 }
 
-void Decoder::unlockState() {
+void OpusDecSrc::unlockState() {
     src->unlockState();
 }
 
-void Decoder::start() {
+void OpusDecSrc::start() {
     src->start();
 }
 
-void Decoder::stop() {
+void OpusDecSrc::stop() {
     src->stop();
 }
 
-State Decoder::state() {
+State OpusDecSrc::state() {
     return src->state();
 }
 
-void Decoder::waitActive() {
+void OpusDecSrc::waitActive() {
     src->waitActive();
 }
 
-int Decoder::channels() const {
+int OpusDecSrc::channels() const {
     int ch = src->channels();
     return ch;
 }

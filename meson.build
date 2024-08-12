@@ -37,4 +37,16 @@ executable(
   dependencies: chat_lib_dep,
 )
 
+executable(
+  'audio_demo',
+  ['src/audio/examples/demo.cpp'],
+  dependencies: chat_lib_dep,
+)
+
+executable(
+  'audio_demo_serv',
+  ['src/audio/examples/demo_serv.cpp'],
+  dependencies: chat_lib_dep,
+)
+
 subdir('test')

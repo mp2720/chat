@@ -39,6 +39,7 @@ Recorder::~Recorder() {
 void Recorder::reconf() {
     stop();
     lockState();
+    bool isActive = stream.isActive();
     stream.close();
     portaudio::DirectionSpecificStreamParameters inParams;
     inParams.setDevice(getInputDevice());
@@ -55,6 +56,9 @@ void Recorder::reconf() {
     );
     std::lock_guard<std::mutex> g(mux);
     stream.open(params);
+    if (isActive) {
+        stream.start();
+    }
     unlockState();
 }
 
@@ -89,7 +93,7 @@ State Recorder::state() {
     return st;
 }
 
-bool Recorder::read(Frame &frame) {
+void Recorder::read(Frame &frame) {
     {
         std::lock_guard<std::mutex> g(mux);
         frame.resize(FRAME_SIZE);
@@ -98,7 +102,6 @@ bool Recorder::read(Frame &frame) {
     for (auto &dsp : dsps) {
         dsp->process(frame);
     }
-    return true;
 }
 
 void Recorder::waitActive() {

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "audio.hpp"
+#include <cstdint>
 #include <exception>
 #include <opus/opus.h>
 #include <vector>
@@ -27,16 +28,28 @@ enum class EncoderPreset {
     Sounds,
 };
 
+class OpusEnc {
+  public:
+    OpusEnc(EncoderPreset ep, int channels);
+    ~OpusEnc();
+    void setPacketLossPrec(int perc);
+    void encode(Frame &in, std::vector<uint8_t> &out, size_t max_size = MAX_ENCODER_BLOCK_SIZE);
+
+  private:
+    OpusEncoder *enc;
+};
+
 class EncodedSource : public Source {
   public:
+    // empty block means packet loss
     virtual void encode(std::vector<uint8_t> &block) = 0;
+    virtual void setPacketLossPrec(int perc) = 0;
     virtual ~EncodedSource() = default;
 };
 
-class Encoder : public EncodedSource {
+class OpusEncSrc : public EncodedSource {
   public:
-    Encoder(shared_ptr<RawSource> src, EncoderPreset ep);
-    ~Encoder();
+    OpusEncSrc(shared_ptr<RawSource> src, EncoderPreset ep);
     void lockState() override;
     void unlockState() override;
     void start() override;
@@ -44,32 +57,40 @@ class Encoder : public EncodedSource {
     State state() override;
     void waitActive() override;
     int channels() const override;
+    void setPacketLossPrec(int perc) override;
     void encode(std::vector<uint8_t> &block) override;
 
   private:
-    OpusEncoder *enc;
+    OpusEnc enc;
     shared_ptr<RawSource> src;
     Frame buf;
 };
 
-class Decoder : public RawSource {
+class OpusDecSrc : public RawSource {
   public:
-    Decoder(shared_ptr<EncodedSource> src);
-    ~Decoder();
+    OpusDecSrc(shared_ptr<EncodedSource> src);
+    ~OpusDecSrc();
     void lockState() override;
     void unlockState() override;
     void start() override;
     void stop() override;
-    bool read(Frame &frame) override;
+    void read(Frame &frame) override;
     State state() override;
     void waitActive() override;
     int channels() const override;
     std::mutex stateMux;
 
   private:
+    void readLoss(Frame &frame);
+    void readFeh(Frame &frame);
+    void readNoFeh(Frame &frame);
+    void readNormal(Frame &frame);
+
+    bool fehFlag = 0;
+    std::vector<uint8_t> fehBuf;
     OpusDecoder *dec;
     shared_ptr<EncodedSource> src;
-    std::vector<unsigned char> buf;
+    std::vector<uint8_t> buf;
 };
 
 } // namespace aud

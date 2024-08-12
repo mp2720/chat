@@ -5,6 +5,10 @@
 #include <mutex>
 #include <ostream>
 
+#ifdef ERROR //windows moment
+#undef ERROR
+#endif
+
 namespace chat {
 
 class Logger {
