@@ -1,6 +1,5 @@
 #include "audio/audio.hpp"
 #include "audio/codec.cpp"
-#include "err.hpp"
 #include "log.hpp"
 #include <cassert>
 #include <cstdio>
@@ -19,7 +18,6 @@ int main() {
         }
     );
     global_logger.setOutput(&std::cerr);
-    err::init();
     initialize();
     mic->dsps.push_back(std::make_shared<RnnoiseDSP>());
     auto enc = std::make_shared<OpusEncSrc>(mic, EncoderPreset::Voise);

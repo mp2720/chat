@@ -1,5 +1,4 @@
 #include "audio/audio.hpp"
-#include "err.hpp"
 #include "log.hpp"
 #include <cassert>
 #include <cstdio>
@@ -17,7 +16,6 @@ int main() {
         }
     );
     global_logger.setOutput(&std::cerr);
-    err::init();
     initialize();
     mic->dsps.push_back(std::make_shared<RnnoiseDSP>());
     auto po = std::make_shared<PaOutput>(mic->channels());

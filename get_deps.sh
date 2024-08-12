@@ -1,8 +1,6 @@
 #!/bin/bash
 set -e
 
-IMGUI_VERSION=1.90.8
-
 # args: name version repo_name copy_meson_build(true/false)
 function download_github_tar_gz_release {
     name=$1
@@ -23,7 +21,7 @@ function download_github_tar_gz_release {
 
 cd subprojects
 
-download_github_tar_gz_release "utfcpp" "4.0.5" "nemtrif/utfcpp"
+download_github_tar_gz_release "GSL" "4.0.0" "microsoft/gsl"
 download_github_tar_gz_release "rnnoise" "0.2" "xiph/rnnoise" true
 pushd rnnoise
     ./download_model.sh

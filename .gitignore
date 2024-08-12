@@ -4,5 +4,5 @@
 build/
 coverage/
 
-subprojects/utfcpp/
+subprojects/GSL/
 subprojects/rnnoise/

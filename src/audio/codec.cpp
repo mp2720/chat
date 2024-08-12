@@ -1,6 +1,5 @@
 #include "codec.hpp"
 #include "audio.hpp"
-#include "err.hpp"
 #include "opus.h"
 #include "opus_defines.h"
 #include <cassert>
@@ -128,7 +127,7 @@ int OpusEncSrc::channels() const {
 }
 
 OpusDecSrc::OpusDecSrc(shared_ptr<EncodedSource> src) : src(src) {
-    CHAT_ASSERT(src);
+    assert(src);
     int err;
     dec = opus_decoder_create(SAMPLE_RATE, src->channels(), &err);
     if (err != OPUS_OK) {
@@ -146,7 +145,7 @@ void OpusDecSrc::readLoss(Frame &frame) {
     if (n_or_err < 0) {
         throw OpusException(n_or_err);
     }
-    CHAT_ASSERT(
+    assert(
         (size_t)n_or_err == FRAME_SIZE * src->channels() && "decoder must return full frame"
     );
 }
@@ -157,7 +156,7 @@ void OpusDecSrc::readNormal(Frame &frame) {
     if (n_or_err < 0) {
         throw OpusException(n_or_err);
     }
-    CHAT_ASSERT(
+    assert(
         (size_t)n_or_err == FRAME_SIZE * src->channels() && "decoder must return full frame"
     );
 }
@@ -169,7 +168,7 @@ void OpusDecSrc::readFeh(Frame &frame) {
     if (n_or_err < 0) {
         throw OpusException(n_or_err);
     }
-    CHAT_ASSERT(
+    assert(
         (size_t)n_or_err == FRAME_SIZE * src->channels() && "decoder must return full frame"
     );
 }
@@ -181,7 +180,7 @@ void OpusDecSrc::readNoFeh(Frame &frame) {
     if (n_or_err < 0) {
         throw OpusException(n_or_err);
     }
-    CHAT_ASSERT(
+    assert(
         (size_t)n_or_err == FRAME_SIZE * src->channels() && "decoder must return full frame"
     );
 }

@@ -1,14 +1,13 @@
 #include "audio.hpp"
-#include "err.hpp"
 #include <cassert>
 #include <csignal>
 #include <cstdint>
 #include <rnnoise.h>
 
 aud::RnnoiseDSP::RnnoiseDSP() {
-    CHAT_ASSERT(aud::SAMPLE_RATE == 48000);
+    assert(aud::SAMPLE_RATE == 48000);
     handler = rnnoise_create(NULL);
-    CHAT_ASSERT(handler);
+    assert(handler);
 }
 
 aud::RnnoiseDSP::~RnnoiseDSP() {
@@ -17,7 +16,7 @@ aud::RnnoiseDSP::~RnnoiseDSP() {
 
 void aud::RnnoiseDSP::process(Frame &frame) {
     int rnnoise_frame_size = rnnoise_get_frame_size();
-    CHAT_ASSERT(
+    assert(
         frame.size() % rnnoise_frame_size == 0 && "frame size must be a multiple of rnnoise size"
     );
 

@@ -1,41 +1,18 @@
-inc = include_directories('.')
-
-cpp_args = ['-Wall', '-Wextra', '-Og', '-g']
+cpp_args = ['-Wall', '-Wextra', '-Og']
 link_args = ['-rdynamic']
-link_args = []
 
-cpp_compiler = meson.get_compiler('cpp')
-
-chat_deps = [
-  dependency('gl'),
-  dependency('glfw3'),
-  dependency('portaudiocpp'),
-  dependency('opus'),
-  dependency('boost'),
-  utfcpp_dep,
-  rnnoise_dep,
-]
-
-if target_machine.system() == 'windows'
-  chat_deps += cpp_compiler.find_library('ws2_32', required: true)
-endif
-
-# for use in tests
+inc = include_directories('.')
 chat_lib = static_library(
   'chat_lib',
   [
     'gui/io.cpp',
     'gui/gui.cpp',
     'log.cpp',
-    'err.cpp',
     'audio/lib.cpp',
     'audio/player.cpp',
     'audio/recorder.cpp',
     'audio/dsp.cpp',
-    'audio/rtp_jitter.cpp',
-    'audio/rtp_sender.cpp',
     'audio/codec.cpp',
-    'audio/bufsrc.cpp',
   ],
   dependencies: chat_deps,
   cpp_args: cpp_args,
@@ -47,40 +24,4 @@ chat_lib_dep = declare_dependency(
   link_with: chat_lib,
   dependencies: chat_deps,
   link_args: link_args,
-)
-
-executable(
-  'chat',
-  ['main.cpp'],
-  dependencies: chat_lib_dep,
-)
-
-executable(
-  'echo',
-  ['audio/examples/echo.cpp'],
-  dependencies: chat_lib_dep,
-)
-
-executable(
-  'echo_opus',
-  ['audio/examples/echo_opus.cpp'],
-  dependencies: chat_lib_dep,
-)
-
-executable(
-  'demo',
-  ['audio/examples/demo.cpp'],
-  dependencies: chat_lib_dep,
-)
-
-executable(
-  'demo_no_rtp',
-  ['audio/examples/demo_no_rtp.cpp'],
-  dependencies: chat_lib_dep,
-)
-
-executable(
-  'demo_serv',
-  ['audio/examples/demo_serv.cpp'],
-  dependencies: chat_lib_dep,
 )

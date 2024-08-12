@@ -1,19 +1,16 @@
 #include "audio/audio.hpp"
 #include "audio/codec.hpp"
-#include "audio/rtp.hpp"
-#include "audio/rtp_jitter.hpp"
+#include "opus_defines.h"
 #include <boost/asio.hpp>
 #include <boost/asio/io_service.hpp>
 #include <boost/asio/ip/udp.hpp>
 #include <cstdint>
 #include <cstring>
-#include <err.hpp>
 #include <iostream>
 #include <log.hpp>
 #include <memory>
 #include <opus.h>
 #include <ostream>
-#include <portaudio.h>
 #include <string>
 #include <thread>
 #include <vector>
@@ -25,24 +22,51 @@ io_service service;
 std::shared_ptr<ip::udp::socket> sock;
 ip::udp::endpoint ep;
 
-aud::RTPJitter rjtr(100, aud::SAMPLE_RATE);
-
-void procPack(std::vector<uint8_t> &pack) {
-    if (pack.size() < sizeof(aud::RTPHeader)) {
-        CHAT_LOGW("Too short a message");
-        return;
-    }
-    aud::rawrtp_ptr p = std::make_shared<aud::RTPPacket>(pack.data(), pack.size());
-    rjtr.push(p);
-}
-
 void receiver() {
+    sock->bind(ip::udp::endpoint(ip::udp::v4(), 0));
     std::vector<uint8_t> recv_buffer;
+
+    int err;
+    OpusDecoder *dec = opus_decoder_create(aud::SAMPLE_RATE, 1, &err);
+    if (err < 0) {
+        throw aud::OpusException(err);
+    }
+    aud::Frame frame;
+    frame.resize(aud::FRAME_SIZE);
+
+    aud::PaOutput out(1);
+    out.start();
     while (1) {
         recv_buffer.resize(1024);
         size_t n = sock->receive(buffer(recv_buffer));
         recv_buffer.resize(n);
-        procPack(recv_buffer);
+        err = opus_decode_float(
+            dec,
+            recv_buffer.data(),
+            recv_buffer.size(),
+            frame.data(),
+            frame.size(),
+            0
+        );
+        if (err < 0) {
+            CHAT_LOGW(opus_strerror(err));
+        }
+        out.write(frame);
+    }
+    opus_decoder_destroy(dec);
+}
+
+void sender() {
+    std::vector<uint8_t> send_buffer;
+    aud::OpusEncSrc es(aud::mic, aud::EncoderPreset::Voise);
+    es.start();
+    while (1) {
+        try {
+            es.encode(send_buffer);
+        } catch (aud::OpusException &ex) {
+            CHAT_LOGW(ex.ErrorText());
+        }
+        sock->send_to(buffer(send_buffer), ep);
     }
 }
 
@@ -53,8 +77,9 @@ int main() {
         }
     );
     global_logger.setOutput(&std::cerr);
-    err::init();
     aud::initialize();
+
+    aud::mic->dsps.push_back(std::make_shared<aud::RnnoiseDSP>());
 
     std::cout << "Enter the server address:" << std::endl;
     std::string addr;
@@ -68,49 +93,7 @@ int main() {
 
     sock = std::make_shared<ip::udp::socket>(service);
     sock->open(ip::udp::v4());
-    sock->bind(ip::udp::endpoint(ip::udp::v4(), 0));
 
-    auto out = std::make_shared<aud::RtpOutput>(sock, ep, aud::EncoderPreset::Voise, 1);
-    aud::Player p(aud::mic, out);
-    p.start();
-
-    std::thread(receiver).detach();
-
-    aud::PaOutput pa(1);
-    pa.start();
-    aud::rawrtp_ptr pack;
-    std::vector<uint8_t> buf;
-    aud::Frame fr;
-    fr.resize(aud::FRAME_SIZE);
-
-    int err;
-    OpusDecoder *dec = opus_decoder_create(aud::SAMPLE_RATE, 1, &err);
-    if (err != OPUS_OK) {
-        throw aud::OpusException(err);
-    }
-
-    while (1) {
-        aud::RTPJitter::RESULT res;
-        do {
-            Pa_Sleep(10);
-            res = rjtr.pop(pack);
-        } while (res == aud::RTPJitter::RESULT::BUFFERING);
-        
-        if (res == aud::RTPJitter::RESULT::SUCCESS) {
-            size_t size = pack->nLen - sizeof(aud::RTPHeader);
-            buf.resize(size);
-            uint8_t *d = pack->pData + sizeof(aud::RTPHeader);
-            memcpy(buf.data(), d, size);
-        } else {
-            buf.resize(0);
-        }
-        err = opus_decode_float(dec, buf.data(), buf.size(), fr.data(), fr.size(), 0);
-        if (err < 0) {
-            throw aud::OpusException(err);
-        }
-        pa.write(fr);
-    }
-
-    aud::terminate();
-    opus_decoder_destroy(dec);
+    std::thread(sender).detach();
+    receiver();
 }

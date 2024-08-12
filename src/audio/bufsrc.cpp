@@ -1,14 +1,14 @@
 #include "audio/audio.hpp"
-#include "err.hpp"
 #include "sources.hpp"
 #include <cstdio>
 #include <cstring>
 #include <mutex>
+#include <assert.h>
 
 using namespace aud;
 
 BufSrc::BufSrc(float buf[], size_t size, int channels) : buf(buf), size(size), chans(channels) {
-    CHAT_ASSERT(size % FRAME_SIZE == 0);
+    assert(size % FRAME_SIZE == 0);
 }
 
 void BufSrc::start() {
