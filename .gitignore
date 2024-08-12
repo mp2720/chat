@@ -6,4 +6,4 @@ coverage/
 
 subprojects/GSL/
 subprojects/rnnoise/
-subprojects/portaudiocpp/
+subprojects/portaudio/

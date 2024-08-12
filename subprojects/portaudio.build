@@ -1,0 +1,29 @@
+project('portaudiocpp', 'cpp')
+
+portaudio_dep = dependency('portaudio-2.0')
+
+portaudiocpp = static_library(
+  'portaudiocpp',
+  [
+    'bindings/cpp/source/portaudiocpp/BlockingStream.cxx',
+    'bindings/cpp/source/portaudiocpp/CallbackInterface.cxx',
+    'bindings/cpp/source/portaudiocpp/CallbackStream.cxx',
+    'bindings/cpp/source/portaudiocpp/CFunCallbackStream.cxx',
+    'bindings/cpp/source/portaudiocpp/CppFunCallbackStream.cxx',
+    'bindings/cpp/source/portaudiocpp/Device.cxx',
+    'bindings/cpp/source/portaudiocpp/DirectionSpecificStreamParameters.cxx',
+    'bindings/cpp/source/portaudiocpp/Exception.cxx',
+    'bindings/cpp/source/portaudiocpp/HostApi.cxx',
+    'bindings/cpp/source/portaudiocpp/InterfaceCallbackStream.cxx',
+    'bindings/cpp/source/portaudiocpp/MemFunCallbackStream.cxx',
+    'bindings/cpp/source/portaudiocpp/Stream.cxx',
+    'bindings/cpp/source/portaudiocpp/StreamParameters.cxx',
+    'bindings/cpp/source/portaudiocpp/System.cxx',
+    'bindings/cpp/source/portaudiocpp/SystemDeviceIterator.cxx',
+    'bindings/cpp/source/portaudiocpp/SystemHostApiIterator.cxx',
+  ],
+  include_directories: 'bindings/cpp/include/',
+  dependencies: portaudio_dep,
+)
+
+portaudiocpp_dep = declare_dependency(include_directories: 'bindings/cpp/include/', link_with: portaudiocpp, dependencies: portaudio_dep)

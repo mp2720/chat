@@ -28,9 +28,6 @@ pushd rnnoise
     ./download_model.sh
 popd
 
-download_github_tar_gz_release "portaudio" "19.7.0" "PortAudio/portaudio"
-cp -r portaudio/bindings/cpp portaudiocpp
-rm -rf portaudio
-cp -r portaudiocpp.build portaudiocpp/meson.build
+download_github_tar_gz_release "portaudio" "19.7.0" "PortAudio/portaudio" true
 
 echo "ok"

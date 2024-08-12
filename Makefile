@@ -7,14 +7,12 @@ setup:
 	mkdir -p ${BUILD_DIR}/
 	meson setup ${BUILD_DIR}/ --buildtype=debug -Db_coverage=true
 
+setup_clang:
+	mkdir -p ${BUILD_DIR}/
+	CC=clang CXX=clang++ LD=lld CXX_LD=lld meson setup ${BUILD_DIR}/ --buildtype=debug -Db_coverage=true
+
 run: build
 	${BUILD_DIR}/chat
-
-run_echo: build
-	${BUILD_DIR}/echo
-
-run_echo_opus: build
-	${BUILD_DIR}/echo_opus
 
 debug: build
 	gdb ${BUILD_DIR}/chat
