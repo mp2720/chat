@@ -1,7 +1,10 @@
 #pragma once
 
+#include "opus.h"
 #include <atomic>
 #include <condition_variable>
+#include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <list>
 #include <memory>
@@ -13,6 +16,7 @@
 #include <rnnoise.h>
 #include <thread>
 #include <vector>
+#include <boost/circular_buffer.hpp>
 
 namespace aud {
 
@@ -176,5 +180,24 @@ class Recorder : public RawSource, public Reconfigurable {
 };
 
 extern shared_ptr<Recorder> mic;
+
+class NetBuf {
+  public:
+    NetBuf(size_t depth = 2, int channels = 1);
+    ~NetBuf();
+    void push(std::vector<uint8_t> data);
+    void pop(Frame &frame);
+  private:
+    size_t depth;
+    int chans;
+    boost::circular_buffer<std::vector<uint8_t>> buf;
+    OpusDecoder *dec;
+    std::mutex mux;
+    std::condition_variable waitRead;
+    std::mutex waitReadMux;
+    std::condition_variable waitWrite;
+    std::mutex waitWriteMux;
+    Frame frameBuf;
+};
 
 } // namespace aud

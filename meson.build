@@ -45,6 +45,13 @@ executable(
 )
 
 executable(
+  'audio_demo_buf',
+  ['src/audio/examples/demo_buf.cpp'],
+  dependencies: chat_lib_dep,
+)
+
+
+executable(
   'audio_demo_serv',
   ['src/audio/examples/demo_serv.cpp'],
   dependencies: chat_lib_dep,

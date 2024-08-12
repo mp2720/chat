@@ -13,6 +13,7 @@ chat_lib = static_library(
     'audio/recorder.cpp',
     'audio/dsp.cpp',
     'audio/codec.cpp',
+    'audio/netbuf.cpp',
   ],
   dependencies: chat_deps,
   cpp_args: cpp_args,
