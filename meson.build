@@ -14,6 +14,7 @@ chat_deps = [
   dependency('portaudiocpp'),
   dependency('opus'),
   dependency('boost'),
+  subproject('portaudiocpp').get_variable('portaudiocpp_dep'),
   rnnoise_dep,
 ]
 
