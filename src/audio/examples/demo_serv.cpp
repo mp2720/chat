@@ -33,11 +33,11 @@ int main() {
         buf.resize(1024);
         size_t n = sock.receive_from(buffer(buf), addr);
         buf.resize(n);
-        std::cout << "get: " << n << " bytes" << std::endl;
+        if (users.find(addr) == users.end()) {
+            std::cout << "get from: " << addr.address() << " " << addr.port() << std::endl;
+        }
         auto now = timer::now();
         users[addr] = now;
-
-
 
         for (auto it = users.begin(); it != users.end();) {
             if (now - it->second >= std::chrono::seconds(3)) {

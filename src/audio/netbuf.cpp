@@ -1,15 +1,16 @@
 #include "audio.hpp"
 #include "codec.hpp"
+#include "log.hpp"
 #include "opus.h"
 #include "opus_defines.h"
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <mutex>
-#include "log.hpp"
 
 using namespace aud;
 
-NetBuf::NetBuf(size_t depth, int channels) : depth(depth), chans(channels), buf(depth * 3) {
+NetBuf::NetBuf(size_t depth, int channels) : depth(depth), chans(channels), buf(depth * 2) {
     int err;
     dec = opus_decoder_create(aud::SAMPLE_RATE, channels, &err);
     if (err < 0) {
@@ -22,23 +23,31 @@ NetBuf::~NetBuf() {
     opus_decoder_destroy(dec);
 }
 
-void NetBuf::push(std::vector<uint8_t> data) {
+void NetBuf::push(uint8_t data[], size_t size) {
+    assert(size <= MAX_ENCODER_BLOCK_SIZE);
+    std::lock_guard lg(mux);
+    mux.lock();
     if (buf.full()) {
         std::unique_lock ul(waitReadMux);
+        mux.unlock();
         waitRead.wait(ul);
+        mux.lock();
     }
-    std::lock_guard lg(mux);
-    buf.push_back(std::move(data));
+    buf.push_back();
+    buf.back().resize(size);
+    memcpy(buf.back().data(), data, size);
     waitWrite.notify_one();
 }
 
 void NetBuf::pop(Frame &frame) {
-    frame.resize(FRAME_SIZE * chans);
+    std::lock_guard lg(mux);
     if (buf.empty()) {
         std::unique_lock ul(waitWriteMux);
+        mux.unlock();
         waitWrite.wait(ul);
+        mux.lock();
     }
-    std::lock_guard lg(mux);
+    frame.resize(FRAME_SIZE * chans);
     int err = opus_decode_float(
         dec,
         buf.front().data(),
@@ -51,7 +60,7 @@ void NetBuf::pop(Frame &frame) {
         throw OpusException(err);
     }
     buf.pop_front();
-    if (buf.size() > depth) {
+    if (buf.size() + 1 > depth) {
         frameBuf.resize(FRAME_SIZE * chans);
         int err = opus_decode_float(
             dec,

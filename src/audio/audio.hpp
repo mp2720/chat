@@ -2,9 +2,10 @@
 
 #include "opus.h"
 #include <atomic>
+#include <boost/circular_buffer.hpp>
+#include <boost/container/static_vector.hpp>
 #include <condition_variable>
 #include <cstddef>
-#include <cstdint>
 #include <functional>
 #include <list>
 #include <memory>
@@ -16,20 +17,19 @@
 #include <rnnoise.h>
 #include <thread>
 #include <vector>
-#include <boost/circular_buffer.hpp>
 
 namespace aud {
 
 inline constexpr int SAMPLE_RATE = 48000;
 inline constexpr size_t FRAME_SIZE = 960;
+inline constexpr size_t MAX_ENCODER_BLOCK_SIZE = 128;
 
+using boost::container::static_vector;
 using portaudio::Device;
 using std::atomic;
 using std::list;
 using std::shared_ptr;
 using std::unique_ptr;
-
-using portaudio::Device;
 
 using Time = PaTime;
 
@@ -95,9 +95,10 @@ class PaOutput : public Output, public Reconfigurable {
     int channels() const override;
     void write(Frame &frame) override;
     void reconf() override;
+
   private:
     std::mutex mux;
-    const int chans; 
+    const int chans;
     portaudio::BlockingStream stream;
 };
 
@@ -183,14 +184,15 @@ extern shared_ptr<Recorder> mic;
 
 class NetBuf {
   public:
-    NetBuf(size_t depth = 2, int channels = 1);
+    NetBuf(size_t depth = 3, int channels = 1);
     ~NetBuf();
-    void push(std::vector<uint8_t> data);
+    void push(uint8_t data[], size_t size);
     void pop(Frame &frame);
+
   private:
     size_t depth;
     int chans;
-    boost::circular_buffer<std::vector<uint8_t>> buf;
+    boost::circular_buffer<static_vector<uint8_t, MAX_ENCODER_BLOCK_SIZE>> buf;
     OpusDecoder *dec;
     std::mutex mux;
     std::condition_variable waitRead;

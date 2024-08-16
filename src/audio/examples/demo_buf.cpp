@@ -1,6 +1,5 @@
 #include "audio/audio.hpp"
 #include "audio/codec.hpp"
-#include "opus_defines.h"
 #include <boost/asio.hpp>
 #include <boost/asio/io_service.hpp>
 #include <boost/asio/ip/udp.hpp>
@@ -13,7 +12,6 @@
 #include <ostream>
 #include <string>
 #include <thread>
-#include <utility>
 #include <vector>
 
 using namespace boost::asio;
@@ -34,7 +32,7 @@ void receiver(aud::NetBuf *nb) {
         recv_buffer.resize(1024);
         size_t n = sock->receive(buffer(recv_buffer));
         recv_buffer.resize(n);
-        nb->push(std::move(recv_buffer));
+        nb->push(recv_buffer.data(), recv_buffer.size());
     }
 }
 void sender() {

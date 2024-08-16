@@ -43,9 +43,9 @@ void receiver() {
         err = opus_decode_float(
             dec,
             recv_buffer.data(),
-            recv_buffer.size(),
+            (int32_t)recv_buffer.size(),
             frame.data(),
-            frame.size(),
+            (int32_t)frame.size(),
             0
         );
         if (err < 0) {

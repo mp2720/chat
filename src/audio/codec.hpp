@@ -8,8 +8,6 @@
 
 namespace aud {
 
-inline constexpr size_t MAX_ENCODER_BLOCK_SIZE = 1024;
-
 class OpusException : std::exception {
   public:
     OpusException(int error) throw();

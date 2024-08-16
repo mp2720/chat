@@ -1,5 +1,5 @@
 #include "audio/audio.hpp"
-#include "audio/codec.cpp"
+#include "audio/codec.hpp"
 #include "log.hpp"
 #include <cassert>
 #include <cstdio>

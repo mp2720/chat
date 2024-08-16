@@ -1,9 +1,9 @@
 #include "audio/audio.hpp"
 #include "sources.hpp"
+#include <assert.h>
 #include <cstdio>
 #include <cstring>
 #include <mutex>
-#include <assert.h>
 
 using namespace aud;
 

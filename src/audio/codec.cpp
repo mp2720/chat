@@ -68,8 +68,7 @@ OpusEnc::~OpusEnc() {
 
 void OpusEnc::encode(Frame &in, std::vector<uint8_t> &out, size_t max_size) {
     out.resize(max_size);
-    int n_or_err =
-        opus_encode_float(enc, in.data(), FRAME_SIZE, out.data(), max_size);
+    int n_or_err = opus_encode_float(enc, in.data(), FRAME_SIZE, out.data(), (int32_t)max_size);
     if (n_or_err < 0) {
         throw OpusException(n_or_err);
     }
@@ -145,44 +144,37 @@ void OpusDecSrc::readLoss(Frame &frame) {
     if (n_or_err < 0) {
         throw OpusException(n_or_err);
     }
-    assert(
-        (size_t)n_or_err == FRAME_SIZE * src->channels() && "decoder must return full frame"
-    );
+    assert((size_t)n_or_err == FRAME_SIZE * src->channels() && "decoder must return full frame");
 }
 
 void OpusDecSrc::readNormal(Frame &frame) {
     frame.resize(FRAME_SIZE * src->channels());
-    int n_or_err = opus_decode_float(dec, buf.data(), buf.size(), frame.data(), FRAME_SIZE, 0);
+    int n_or_err =
+        opus_decode_float(dec, buf.data(), (int32_t)buf.size(), frame.data(), FRAME_SIZE, 0);
     if (n_or_err < 0) {
         throw OpusException(n_or_err);
     }
-    assert(
-        (size_t)n_or_err == FRAME_SIZE * src->channels() && "decoder must return full frame"
-    );
+    assert((size_t)n_or_err == FRAME_SIZE * src->channels() && "decoder must return full frame");
 }
 
 void OpusDecSrc::readFeh(Frame &frame) {
     frame.resize(FRAME_SIZE * src->channels());
     int n_or_err =
-        opus_decode_float(dec, fehBuf.data(), fehBuf.size(), frame.data(), FRAME_SIZE, 1);
+        opus_decode_float(dec, fehBuf.data(), (int32_t)fehBuf.size(), frame.data(), FRAME_SIZE, 1);
     if (n_or_err < 0) {
         throw OpusException(n_or_err);
     }
-    assert(
-        (size_t)n_or_err == FRAME_SIZE * src->channels() && "decoder must return full frame"
-    );
+    assert((size_t)n_or_err == FRAME_SIZE * src->channels() && "decoder must return full frame");
 }
 
 void OpusDecSrc::readNoFeh(Frame &frame) {
     frame.resize(FRAME_SIZE * src->channels());
     int n_or_err =
-        opus_decode_float(dec, fehBuf.data(), fehBuf.size(), frame.data(), FRAME_SIZE, 0);
+        opus_decode_float(dec, fehBuf.data(), (int32_t)fehBuf.size(), frame.data(), FRAME_SIZE, 0);
     if (n_or_err < 0) {
         throw OpusException(n_or_err);
     }
-    assert(
-        (size_t)n_or_err == FRAME_SIZE * src->channels() && "decoder must return full frame"
-    );
+    assert((size_t)n_or_err == FRAME_SIZE * src->channels() && "decoder must return full frame");
 }
 
 void OpusDecSrc::read(Frame &frame) {
