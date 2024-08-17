@@ -18,6 +18,12 @@ chat_deps = [
   rnnoise_dep,
 ]
 
+
+if target_machine.system() == 'windows'
+    add_project_arguments('-DCHAT_BUILD_WINDOWS', language : ['c', 'cpp'])
+    chat_deps += meson.get_compiler('cpp').find_library('ws2_32', required: true)
+endif
+
 subdir('src')
 
 executable(

@@ -1,5 +1,6 @@
 cpp_args = ['-Wall', '-Wextra', '-Og']
-link_args = ['-rdynamic']
+
+link_args = []
 
 inc = include_directories('.')
 chat_lib = static_library(

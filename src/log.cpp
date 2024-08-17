@@ -40,7 +40,11 @@ void Logger::log(Severity severity, const char *file, long line, std::string &&s
     struct tm m_time;
     time_t s_time = time(nullptr);
 
+#ifdef CHAT_BUILD_WINDOWS
+    localtime_s(&m_time, &s_time);
+#else
     localtime_r(&s_time, &m_time);
+#endif
 
     {
         std::lock_guard lock(mutex);
