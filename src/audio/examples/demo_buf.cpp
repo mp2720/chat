@@ -32,7 +32,7 @@ void receiver(aud::NetBuf *nb) {
         recv_buffer.resize(1024);
         size_t n = sock->receive(buffer(recv_buffer));
         recv_buffer.resize(n);
-        nb->push(recv_buffer.data(), recv_buffer.size());
+        nb->push(recv_buffer);
     }
 }
 void sender() {

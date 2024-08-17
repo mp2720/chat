@@ -4,6 +4,7 @@
 #include "opus.h"
 #include "opus_defines.h"
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <mutex>
@@ -23,8 +24,8 @@ NetBuf::~NetBuf() {
     opus_decoder_destroy(dec);
 }
 
-void NetBuf::push(uint8_t data[], size_t size) {
-    assert(size <= MAX_ENCODER_BLOCK_SIZE);
+void NetBuf::push(boost::span<uint8_t> pack) {
+    assert(pack.size() <= MAX_ENCODER_BLOCK_SIZE);
     std::lock_guard lg(mux);
     mux.lock();
     if (buf.full()) {
@@ -34,8 +35,8 @@ void NetBuf::push(uint8_t data[], size_t size) {
         mux.lock();
     }
     buf.push_back();
-    buf.back().resize(size);
-    memcpy(buf.back().data(), data, size);
+    buf.back().resize(pack.size());
+    memcpy(buf.back().data(), pack.data(), pack.size());
     waitWrite.notify_one();
 }
 

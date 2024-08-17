@@ -4,8 +4,10 @@
 #include <atomic>
 #include <boost/circular_buffer.hpp>
 #include <boost/container/static_vector.hpp>
+#include <boost/core/span.hpp>
 #include <condition_variable>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <list>
 #include <memory>
@@ -186,7 +188,7 @@ class NetBuf {
   public:
     NetBuf(size_t depth = 3, int channels = 1);
     ~NetBuf();
-    void push(uint8_t data[], size_t size);
+    void push(boost::span<uint8_t> pack);
     void pop(Frame &frame);
 
   private:
