@@ -5,8 +5,8 @@
 
 namespace chat::gui {
 
-using Vec2I = glm::vec<2, int>;
-using Vec2F = glm::vec<2, float>;
+using Vec2Pt = glm::vec<2, int>;
+using Vec2Px = glm::vec<2, int>;
 
 using Color = glm::vec<4, uint8_t>;
 using ColorF = glm::vec<4, float>;

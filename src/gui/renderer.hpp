@@ -1,28 +1,33 @@
 #pragma once
 
 #include "err.hpp"
+#include "gui/vec.hpp"
 #include "ptr.hpp"
-#include "vec.hpp"
-#include <cassert>
 #include <chrono>
-#include <cstddef>
-#include <exception>
 #include <optional>
-#include <utility>
 
 namespace chat::gui {
 
-class GraphicsException : public StringException {
+class RendererException : public StringException {
   public:
-    inline GraphicsException(std::string str_)
-        : StringException(std::move(str_)) {};
+    RendererException(std::string str)
+        : StringException(str) {}
 };
 
 struct RectPos {
-    Vec2F bl, tr;
+    Vec2Px top_left, size;
 };
 
-class Texture {
+class Drawable {
+  public:
+    virtual void setPosition(const RectPos &pos) = 0;
+
+    virtual void setTransform(const glm::mat3 &transform) = 0;
+
+    virtual void draw() const = 0;
+};
+
+class TexturedRect : public Drawable {
   protected:
     virtual void flush() = 0;
 
@@ -36,12 +41,12 @@ class Texture {
     // ctor and dtor calls. Note that flush may throw.
     // Do not delete the texture before the `BufferLock` instance destruction!
     class BufferLock {
-        Texture *texture = nullptr;
+        TexturedRect *rect = nullptr;
         int uncaught_exceptions_cnt;
 
       public:
-        BufferLock(Texture *texture_)
-            : texture(texture_),
+        BufferLock(TexturedRect *rect_)
+            : rect(rect_),
               uncaught_exceptions_cnt(std::uncaught_exceptions()) {}
 
         BufferLock(BufferLock &&other) {
@@ -53,30 +58,32 @@ class Texture {
                 this->~BufferLock();
 
                 this->uncaught_exceptions_cnt = other.uncaught_exceptions_cnt;
-                this->texture = other.texture;
+                this->rect = other.rect;
 
-                other.texture = nullptr;
+                other.rect = nullptr;
             }
             return *this;
         }
 
         not_null<unsigned char *> get() {
-            return texture->getBuf();
+            return rect->getBuf();
         }
 
         ~BufferLock() {
-            if (texture != nullptr && uncaught_exceptions_cnt >= std::uncaught_exceptions())
-                texture->flush();
+            if (rect != nullptr && uncaught_exceptions_cnt >= std::uncaught_exceptions())
+                rect->flush();
         }
     };
+
+    virtual ~TexturedRect() {}
 
     // Pitch is a number of texels in row.
     virtual size_t getPitch() const = 0;
 
-    virtual Vec2I getResolution() const = 0;
+    virtual Vec2Px getResolution() const = 0;
 
     // Texture buf will contain undefined values after this call.
-    virtual void resize(Vec2I new_res) = 0;
+    virtual void resize(Vec2Px new_res) = 0;
 
     // Get the texture buffer for reading.
     // Doesn't lead to flushing on destruction.
@@ -100,101 +107,57 @@ class Texture {
     std::optional<BufferLock> lockBuf() {
         return lockBuf(std::chrono::nanoseconds(0));
     }
-
-    virtual ~Texture() {}
 };
 
-class DrawableRect {
+class ColoredRect : public Drawable {
   public:
-    virtual void setPosition(const RectPos &pos) = 0;
+    virtual ~ColoredRect() {};
 
-    virtual void setTransform(const glm::mat3 &mat) = 0;
+    virtual void setBackgroundBlurRadius(float radius) = 0;
 
-    // Takes effect only if NO_TEXTURE is a texture mode.
     virtual void setColor(const Color &color) = 0;
-
-    virtual void setBackgroundBlurRadius(float value) = 0;
-
-    // returns null only if NO_TEXTURE is a texture mode
-    virtual Texture *getTexture() = 0;
-
-    // returns null only if NO_TEXTURE is a texture mode
-    virtual const Texture *getConstTexture() const = 0;
-
-    not_null<Texture *> requireTexture() {
-        return getTexture();
-    }
-
-    not_null<const Texture *> requireConstTexture() const {
-        return getConstTexture();
-    }
-
-    virtual void draw() const = 0;
-
-    virtual ~DrawableRect() {}
 };
 
-enum class TextureMode {
-    NO_TEXTURE,
-    STATIC_TEXTURE,
-    /*STREAMING_TEXTURE,*/
-};
+enum class TextureMode { STATIC, TEXTURE };
 
-struct DrawableRectConfig {
-    RectPos pos{};
-
-    TextureMode texture_mode = TextureMode::NO_TEXTURE;
-    Vec2I texture_res{};
-
-    Color color{};
-
-    float bg_blur_radius = 0;
-};
-
-// Do not delete instance of this class if any `DrawableRect` or `DrawableRectCreator` pointing to
-// this instance is alive.
-class RendererContext {
+class DrawableCreator {
   public:
-    // Create drawable rectangle that is ready for rendering by calling `draw()` method.
-    // Never returns null.
+    virtual ~DrawableCreator() {}
+
     [[nodiscard]]
-    virtual unique_ptr<DrawableRect> createRect(const DrawableRectConfig &conf) = 0;
+    virtual unique_ptr<TexturedRect>
+    createBitmapTexturedRect(const RectPos &pos, Vec2Px res, TextureMode mode) = 0;
 
-    virtual void resize(Vec2I drawable_area_size) = 0;
+    // TODO: implement
+    /*virtual unique_ptr<TexturedRect> createSvgTexturedRect() = 0;*/
 
-    virtual void drawStart() const = 0;
+    // TODO: implement
+    /*virtual unique_ptr<Text> createText() = 0;*/
 
-    virtual ~RendererContext() {}
+    [[nodiscard]]
+    virtual unique_ptr<ColoredRect>
+    createColoredRect(const RectPos &pos, Color color, float background_blur_radius) = 0;
 };
 
-// Wrapper around the `RendererContext` that allows only `DrawableRect` creation and hides other
-// virtual methods.
-// Never returns nullptr.
-class DrawableRectCreator {
-  private:
-    not_null<RendererContext *> ctx;
-
+class Renderer : public DrawableCreator {
   public:
-    DrawableRectCreator(not_null<RendererContext *> ctx_)
-        : ctx(ctx_) {};
+    virtual ~Renderer() {}
 
-    unique_ptr<DrawableRect> operator()(const DrawableRectConfig &conf) {
-        return ctx->createRect(conf);
-    }
+    virtual void clear() const = 0;
+
+    virtual void resize(Vec2Px size) = 0;
 };
 
 struct RendererConfig {
-    Color clear_color{0, 0, 0, 1};
     bool enable_debug_log = false, enable_blur = true;
 };
 
-// By declaring `createXXXRendererContext()` methods here we can avoid exposing
-// implementation-dependent headers.
+// By declaring `makeXXXRenderer()` methods here we can avoid exposing implementation-dependent
+// headers.
 // These methods should never return null.
 
-// defined in `renderer_gl_impl.cpp`
 // Never returns null
 [[nodiscard]]
-unique_ptr<RendererContext> makeGlRendererContext(const RendererConfig &config);
+unique_ptr<Renderer> makeGlRenderer(const RendererConfig &config);
 
 } // namespace chat::gui

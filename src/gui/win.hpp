@@ -2,6 +2,7 @@
 
 #include "err.hpp"
 #include "gui/renderer.hpp"
+#include "gui/vec.hpp"
 #include "ptr.hpp"
 #include <string>
 
@@ -19,13 +20,24 @@ class Window {
 
     virtual void requestAttention() = 0;
 
+    virtual Vec2Px getSize() const = 0;
+
+    virtual float getUiScale() const = 0;
+
+    virtual glm::vec2 getWindowScale() const = 0;
+
+    glm::vec2 getScale() const {
+        return getWindowScale() * getUiScale();
+    }
+
     virtual ~Window() {}
 };
 
 class WindowSystem {
   public:
     [[nodiscard]]
-    virtual weak_ptr<Window> createWindow(const RendererConfig &config) = 0;
+    virtual weak_ptr<Window>
+    createWindow(const RendererConfig &renderer_config, float ui_scale) = 0;
 
     // Does nothing if `window` is already expired.
     virtual void closeWindow(weak_ptr<Window> window) = 0;

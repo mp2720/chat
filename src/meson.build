@@ -6,9 +6,8 @@ chat_lib = static_library(
   'chat_lib',
   [
     'log.cpp',
-    'gui/backends/renderer_gl_impl.cpp',
-    'gui/backends/win_glfw_impl.cpp',
-    # 'gui/gui.cpp',
+    'gui/backends/gl.cpp',
+    'gui/backends/glfw.cpp',
     'audio/lib.cpp',
     'audio/player.cpp',
     'audio/recorder.cpp',

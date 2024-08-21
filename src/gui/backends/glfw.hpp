@@ -2,6 +2,7 @@
 
 #include "../win.hpp"
 #include "gui/renderer.hpp"
+#include "gui/vec.hpp"
 #include "ptr.hpp"
 #include <GLFW/glfw3.h>
 #include <vector>
@@ -13,13 +14,21 @@ namespace chat::gui::backends {
 class GlfwWindow final : public Window {
   private:
     GlfwCWindowHandle win_handle;
-    unique_ptr<RendererContext> renderer_ctx;
+    unique_ptr<Renderer> renderer_ctx;
     bool refresh_required = true;
     bool resize_required = false;
     bool need_redraw = false;
+    Vec2Px size;
+    glm::vec2 win_scale;
+    float ui_scale;
+
+    void updateSizeAndScale() {
+        glfwGetFramebufferSize(win_handle, &size.x, &size.y);
+        glfwGetWindowContentScale(win_handle, &win_scale.x, &win_scale.y);
+    }
 
   public:
-    GlfwWindow(const RendererConfig &config);
+    GlfwWindow(const RendererConfig &config, float ui_scale);
 
     void setTitle(const char *title) final {
         glfwSetWindowTitle(win_handle, title);
@@ -27,6 +36,18 @@ class GlfwWindow final : public Window {
 
     void requestAttention() final {
         glfwRequestWindowAttention(win_handle);
+    };
+
+    Vec2Px getSize() const final {
+        return size;
+    };
+
+    float getUiScale() const final {
+        return ui_scale;
+    }
+
+    glm::vec2 getWindowScale() const final {
+        return win_scale;
     };
 
     ~GlfwWindow() final {
@@ -67,15 +88,18 @@ class GlfwWindowSystem final : public WindowSystem {
 
     static void onError(int error, const char *description) noexcept;
 
-    static void onWindowRefresh(GlfwCWindowHandle window) noexcept;
+    static void onWindowRefresh(GlfwCWindowHandle win_handle) noexcept;
 
-    static void onWindowResize(GlfwCWindowHandle window, int width, int height) noexcept;
+    static void onWindowResize(GlfwCWindowHandle win_handle, int width, int height) noexcept;
+
+    static void
+    onWindowScaleChange(GlfwCWindowHandle win_handle, float xscale, float yscale) noexcept;
 
   public:
     GlfwWindowSystem();
 
     [[nodiscard]]
-    weak_ptr<Window> createWindow(const RendererConfig &config) final;
+    weak_ptr<Window> createWindow(const RendererConfig &renderer_config, float ui_scale) final;
 
     void closeWindow(weak_ptr<Window> window) final;
 

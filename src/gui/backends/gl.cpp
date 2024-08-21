@@ -1,9 +1,10 @@
-#include "renderer_gl_impl.hpp"
+#include "gl.hpp"
 
 #include "gui/renderer.hpp"
 #include "gui/vec.hpp"
 #include "log.hpp"
 #include "ptr.hpp"
+#include <GL/gl.h>
 #include <array>
 #include <boost/format.hpp>
 #include <cstddef>
@@ -11,11 +12,11 @@
 #include <memory>
 
 using namespace chat::gui::backends;
-using namespace gl_details;
 
 using boost::str, boost::format;
 using chat::Logger, chat::unique_ptr, chat::not_null;
-using chat::gui::GraphicsException, chat::gui::RendererContext, chat::gui::DrawableRect;
+using chat::gui::RendererException, chat::gui::Renderer, chat::gui::RectPos, chat::gui::Vec2Px,
+    chat::gui::TextureMode, chat::gui::Color, chat::gui::ColoredRect, chat::gui::TexturedRect;
 
 // TODO: просмотреть вызовы функций, обёрнутые в CHAT_GL_CHECK. Возможно не все из них нужно
 // TODO: проверять.
@@ -29,7 +30,7 @@ static void checkGlError(const char *stmt) {
 
     // Зачем возвращать const unsigned char * ???
     const char *str = reinterpret_cast<const char *>(glewGetErrorString(err));
-    throw GraphicsException(::str(format("GL error %1% in %2%") % str % stmt));
+    throw RendererException(::str(format("GL error %1% in %2%") % str % stmt));
 }
 
 #  define CHAT_GL_CHECK(stmt)  \
@@ -57,7 +58,7 @@ GlShaderProgram::Shader::Shader(not_null<const char *> src, Type type) {
 
     CHAT_GL_CHECK(obj.getIdRef() = glCreateShader(gl_type));
     if (obj.getIdRef() == 0)
-        throw GraphicsException("failed to create shader");
+        throw RendererException("failed to create shader");
 
     const char *src_ = src;
 
@@ -70,7 +71,7 @@ GlShaderProgram::Shader::Shader(not_null<const char *> src, Type type) {
         char info_log[INFO_LOG_SIZE];
         CHAT_GL_CHECK(glGetShaderInfoLog(obj, sizeof info_log, nullptr, info_log));
 
-        throw GraphicsException(
+        throw RendererException(
             str(format("failed to compile %1% shader: %2%") % type_str % info_log)
         );
     }
@@ -80,7 +81,7 @@ GLint GlShaderProgram::getUniformLocation(not_null<const char *> name) const {
     GLint loc;
     CHAT_GL_CHECK(loc = glGetUniformLocation(obj, name));
     if (loc < 0)
-        throw GraphicsException(str(format("uniform %1% not found") % name));
+        throw RendererException(str(format("uniform %1% not found") % name));
 
     return loc;
 }
@@ -93,7 +94,7 @@ GlShaderProgram::GlShaderProgram(
     Shader vertex(vertex_src, Shader::Type::VERTEX), fragment(frag_src, Shader::Type::FRAGMENT);
     CHAT_GL_CHECK(obj.getIdRef() = glCreateProgram());
     if (obj.getIdRef() == 0)
-        throw new GraphicsException("failed to create shader program");
+        throw new RendererException("failed to create shader program");
 
     CHAT_GL_CHECK(glAttachShader(obj, vertex.getId()));
     CHAT_GL_CHECK(glAttachShader(obj, fragment.getId()));
@@ -105,7 +106,7 @@ GlShaderProgram::GlShaderProgram(
         char info_log[INFO_LOG_SIZE];
         CHAT_GL_CHECK(glGetProgramInfoLog(obj, sizeof info_log, nullptr, info_log));
 
-        throw GraphicsException(str(format("failed to link shader program: %2%") % info_log));
+        throw RendererException(str(format("failed to link shader program: %2%") % info_log));
     }
 }
 
@@ -192,204 +193,11 @@ void GlShaderProgramsManager::init() {
     textured_argb8888 = GlShaderProgram(VERT_TEXTURE_SHADER_SRC, FRAG_TEXTURE_ARGB8888_SHADER_SRC);
 }
 
-void GlRectPolygon::genVertices(const RectPos &pos, bool add_texture_coords) noexcept {
-    std::array<GLfloat, VERTICES_ARRAY_MAX_SIZE> vertices_copy;
-
-    // clang-format off
-    if (add_texture_coords)
-        vertices_copy = {
-            pos.tr.x, pos.tr.y, 0, 1, 1, // top right
-            pos.tr.x, pos.bl.y, 0, 1, 0, // bottom right
-            pos.bl.x, pos.bl.y, 0, 0, 0, // bottom left
-            pos.bl.x, pos.tr.y, 0, 0, 1, // top left
-        };
-    else
-        vertices_copy = {
-            pos.tr.x, pos.tr.y, 0, // top right
-            pos.tr.x, pos.bl.y, 0, // bottom right
-            pos.bl.x, pos.bl.y, 0, // bottom left
-            pos.bl.x, pos.tr.y, 0, // top left
-        };
-    // clang-format on
-
-    std::copy(vertices_copy.begin(), vertices_copy.end(), vertices.begin());
+void GlRenderer::handleGlewError(GLenum err) {
+    throw RendererException(str(format("GLEW error: %1%") % glewGetErrorString(err)));
 }
 
-GlRectPolygon::GlRectPolygon(const RectPos &pos, bool add_texture_coords) {
-    genVertices(pos, add_texture_coords);
-
-    CHAT_GL_CHECK(glGenVertexArrays(1, &vao.getIdRef()));
-    CHAT_GL_CHECK(glGenBuffers(1, &vbo.getIdRef()));
-    CHAT_GL_CHECK(glGenBuffers(1, &ebo.getIdRef()));
-
-    CHAT_GL_CHECK(glBindVertexArray(vao));
-
-    size_t vertices_arr_size =
-        add_texture_coords ? TEX_VERTICES_ARRAY_SIZE : NOTEX_VERTICES_ARRAY_SIZE;
-
-    CHAT_GL_CHECK(glBindBuffer(GL_ARRAY_BUFFER, vbo));
-    CHAT_GL_CHECK(glBufferData(
-        GL_ARRAY_BUFFER,
-        vertices_arr_size * sizeof(vertices[0]),
-        vertices.data(),
-        GL_DYNAMIC_DRAW
-    ));
-
-    CHAT_GL_CHECK(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo));
-    CHAT_GL_CHECK(
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(INDICES), INDICES.begin(), GL_DYNAMIC_DRAW)
-    );
-
-    if (add_texture_coords) {
-        CHAT_GL_CHECK(glVertexAttribPointer(
-            0,
-            POS_COORDS_NUM,
-            GL_FLOAT,
-            GL_FALSE,
-            (POS_COORDS_NUM + TEX_COORDS_NUM) * sizeof(GLfloat),
-            0
-        ));
-        CHAT_GL_CHECK(glEnableVertexAttribArray(0));
-
-        CHAT_GL_CHECK(glVertexAttribPointer(
-            1,
-            TEX_COORDS_NUM,
-            GL_FLOAT,
-            GL_FALSE,
-            (POS_COORDS_NUM + TEX_COORDS_NUM) * sizeof(GLfloat),
-            reinterpret_cast<const void *>(POS_COORDS_NUM * sizeof(GLfloat))
-        ));
-        CHAT_GL_CHECK(glEnableVertexAttribArray(1));
-    } else {
-        CHAT_GL_CHECK(glVertexAttribPointer(
-            0,
-            POS_COORDS_NUM,
-            GL_FLOAT,
-            GL_FALSE,
-            POS_COORDS_NUM * sizeof(GLfloat),
-            0
-        ));
-        CHAT_GL_CHECK(glEnableVertexAttribArray(0));
-    }
-}
-
-void GlRectPolygon::draw() const {
-    CHAT_GL_CHECK(glBindVertexArray(vao));
-    CHAT_GL_CHECK(glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0));
-}
-
-void GlRectPolygon::setPosition(const RectPos &new_pos, bool add_texture_coords) {
-    genVertices(new_pos, add_texture_coords);
-
-    size_t vertices_arr_size =
-        add_texture_coords ? TEX_VERTICES_ARRAY_SIZE : NOTEX_VERTICES_ARRAY_SIZE;
-
-    CHAT_GL_CHECK(glBindBuffer(GL_ARRAY_BUFFER, vbo));
-    CHAT_GL_CHECK(glBufferSubData(
-        GL_ARRAY_BUFFER,
-        0,
-        static_cast<GLsizeiptr>(vertices_arr_size * sizeof(GLfloat)),
-        vertices.data()
-    ));
-}
-
-void GlTexture::flush() {
-    CHAT_GL_CHECK(glBindTexture(GL_TEXTURE_2D, obj));
-    CHAT_GL_CHECK(
-        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, res.x, res.y, GL_RGBA, GL_UNSIGNED_BYTE, buf.get())
-    );
-}
-
-bool GlTexture::waitForSync(std::chrono::nanoseconds timeout) {
-    // TODO: add streaming texture.
-    return true;
-};
-
-void GlTexture::prepareShader(const GlShaderProgramsManager &shp_man) const {
-    shp_man.getTextured().use();
-    shp_man.getTextured().setUniform("texture_", 0);
-
-    CHAT_GL_CHECK(glActiveTexture(GL_TEXTURE0));
-    CHAT_GL_CHECK(glBindTexture(GL_TEXTURE_2D, obj));
-}
-
-GlTexture::GlTexture(Vec2I res_, TextureMode mode_)
-    : res(res_),
-      mode(mode_) {
-    if (mode == TextureMode::NO_TEXTURE)
-        return;
-
-    CHAT_GL_CHECK(glGenTextures(1, &obj.getIdRef()));
-
-    CHAT_GL_CHECK(glBindTexture(GL_TEXTURE_2D, obj));
-    CHAT_GL_CHECK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT));
-    CHAT_GL_CHECK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT));
-
-    CHAT_GL_CHECK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
-    CHAT_GL_CHECK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
-
-    buf_capacity = static_cast<size_t>(res.x * res.y) * sizeof(unsigned char) * TEXTURE_CHANNELS;
-    buf = unique_ptr<unsigned char[]>(new unsigned char[buf_capacity]);
-
-    CHAT_GL_CHECK(glTexImage2D(
-        GL_TEXTURE_2D,
-        0,
-        GL_RGBA,
-        res.x,
-        res.y,
-        0,
-        GL_RGBA,
-        GL_UNSIGNED_BYTE,
-        buf.get()
-    ));
-}
-
-void GlTexture::resize(Vec2I new_res) {
-    res = new_res;
-
-    size_t new_buf_size = static_cast<size_t>(new_res.x * new_res.y) * TEXTURE_CHANNELS;
-    if (new_buf_size > buf_capacity) {
-        buf_capacity = new_buf_size;
-        buf = unique_ptr<unsigned char[]>(new unsigned char[new_buf_size]);
-    }
-
-    CHAT_GL_CHECK(glTexImage2D(
-        GL_TEXTURE_2D,
-        0,
-        GL_RGBA,
-        new_res.x,
-        new_res.y,
-        0,
-        GL_RGBA,
-        GL_UNSIGNED_BYTE,
-        buf.get()
-    ));
-}
-
-GlDrawableRect::GlDrawableRect(GlRendererContext &ctx_, const DrawableRectConfig &config)
-    : ctx(ctx_),
-      texture(config.texture_res, config.texture_mode),
-      polygon({config.pos, texture.isEnabled()}),
-      color(colorToF(config.color)) {}
-
-void GlDrawableRect::draw() const {
-    const auto &shp_man = ctx.getShaderProgramsManager();
-
-    if (texture.isEnabled()) {
-        texture.prepareShader(shp_man);
-    } else {
-        shp_man.getColored().use();
-        shp_man.getColored().setUniform("color", color);
-    }
-
-    polygon.draw();
-}
-
-void GlRendererContext::handleGlewError(GLenum err) {
-    throw GraphicsException(str(format("GLEW error: %1%") % glewGetErrorString(err)));
-}
-
-void GlRendererContext::onGlErrorCallback(
+void GlRenderer::onGlErrorCallback(
     GLenum source,
     GLenum type,
     [[maybe_unused]] GLuint id,
@@ -398,7 +206,7 @@ void GlRendererContext::onGlErrorCallback(
     const GLchar *message,
     [[maybe_unused]] const void *user_param
 ) {
-    const GlRendererContext *this_ = static_cast<const GlRendererContext *>(user_param);
+    const GlRenderer *this_ = static_cast<const GlRenderer *>(user_param);
 
     Logger::Severity logger_severity;
     const char *severity_str;
@@ -472,9 +280,8 @@ void GlRendererContext::onGlErrorCallback(
     );
 }
 
-GlRendererContext::GlRendererContext(Color clear_color_, bool enable_debug_log, bool enable_blur_)
-    : clear_color(clear_color_),
-      enable_blur(enable_blur_) {
+GlRenderer::GlRenderer(bool enable_debug_log, bool enable_blur_)
+    : enable_blur(enable_blur_) {
 
     GLenum err = glewInit();
     if (err != GLEW_OK)
@@ -491,7 +298,7 @@ GlRendererContext::GlRendererContext(Color clear_color_, bool enable_debug_log, 
             try {
                 CHAT_GL_CHECK(glEnable(GL_DEBUG_OUTPUT));
                 CHAT_GL_CHECK(glDebugMessageCallback(onGlErrorCallback, this));
-            } catch (const GraphicsException &e) {
+            } catch (const RendererException &e) {
                 CHAT_LOGE(format("failed to enable GL debug log %1%") % e.what());
             }
         } else {
@@ -506,26 +313,231 @@ GlRendererContext::GlRendererContext(Color clear_color_, bool enable_debug_log, 
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 #endif // CHAT_GL_WIREFRAME
 
-    shader_programs_manager.init();
+    shader_progs_manager.init();
 }
 
-unique_ptr<DrawableRect> GlRendererContext::createRect(const DrawableRectConfig &conf) {
-    return std::make_unique<GlDrawableRect>(*this, conf);
-};
-
-void GlRendererContext::resize(Vec2I frame_buf_size) {
+void GlRenderer::resize(Vec2Px frame_buf_size) {
+    size = frame_buf_size;
     CHAT_GL_CHECK(glViewport(0, 0, frame_buf_size.x, frame_buf_size.y));
 }
 
-void GlRendererContext::drawStart() const {
-    glClearColor(clear_color.x, clear_color.y, clear_color.z, clear_color.w);
+void GlRenderer::clear() const {
+    glClearColor(0, 0, 0, 0);
     glClear(GL_COLOR_BUFFER_BIT);
 }
 
-unique_ptr<RendererContext> chat::gui::makeGlRendererContext(const RendererConfig &config) {
-    return std::make_unique<GlRendererContext>(
-        config.clear_color,
-        config.enable_debug_log,
-        config.enable_blur
+unique_ptr<TexturedRect>
+GlRenderer::createBitmapTexturedRect(const RectPos &pos, Vec2Px res, TextureMode mode) {
+    return std::make_unique<GlTexturedRect>(*this, pos, res, mode);
+};
+
+unique_ptr<ColoredRect>
+GlRenderer::createColoredRect(const RectPos &pos, Color color, float background_blur_radius) {
+    return std::make_unique<GlColoredRect>(*this, pos, color, background_blur_radius);
+};
+
+void GlRectPolygon::genVertices(const GlViewport &viewport, const RectPos &pos) noexcept {
+    std::array<GLfloat, VERTICES_ARRAY_MAX_SIZE> vertices_copy;
+
+    auto gl_tl = viewport.pxToGlCoords(pos.top_left);
+    auto gl_size = viewport.pxToGlCoords(pos.size);
+
+    glm::vec2 gl_tr = {gl_tl.x + gl_size.x, gl_tl.y};
+    glm::vec2 gl_bl = {gl_tl.x, gl_tl.y - gl_size.y};
+
+    // clang-format off
+    if (has_texture_coords)
+        vertices_copy = {
+            gl_tr.x, gl_tr.y, 0, 1, 1, // top right
+            gl_tr.x, gl_bl.y, 0, 1, 0, // bottom right
+            gl_bl.x, gl_bl.y, 0, 0, 0, // bottom left
+            gl_bl.x, gl_tr.y, 0, 0, 1, // top left
+        };
+    else
+        vertices_copy = {
+            gl_tr.x, gl_tr.y, 0, // top right
+            gl_tr.x, gl_bl.y, 0, // bottom right
+            gl_bl.x, gl_bl.y, 0, // bottom left
+            gl_bl.x, gl_tr.y, 0, // top left
+        };
+    // clang-format on
+
+    std::copy(vertices_copy.begin(), vertices_copy.end(), vertices.begin());
+}
+
+GlRectPolygon::GlRectPolygon(
+    const GlViewport &viewport,
+    const RectPos &pos,
+    bool add_texture_coords
+)
+    : has_texture_coords(add_texture_coords) {
+
+    genVertices(viewport, pos);
+
+    CHAT_GL_CHECK(glGenVertexArrays(1, &vao.getIdRef()));
+    CHAT_GL_CHECK(glGenBuffers(1, &vbo.getIdRef()));
+    CHAT_GL_CHECK(glGenBuffers(1, &ebo.getIdRef()));
+
+    CHAT_GL_CHECK(glBindVertexArray(vao));
+
+    size_t vertices_arr_size =
+        add_texture_coords ? TEX_VERTICES_ARRAY_SIZE : NOTEX_VERTICES_ARRAY_SIZE;
+
+    CHAT_GL_CHECK(glBindBuffer(GL_ARRAY_BUFFER, vbo));
+    CHAT_GL_CHECK(glBufferData(
+        GL_ARRAY_BUFFER,
+        vertices_arr_size * sizeof(vertices[0]),
+        vertices.data(),
+        GL_DYNAMIC_DRAW
+    ));
+
+    CHAT_GL_CHECK(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo));
+    CHAT_GL_CHECK(
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(INDICES), INDICES.begin(), GL_DYNAMIC_DRAW)
     );
+
+    if (add_texture_coords) {
+        CHAT_GL_CHECK(glVertexAttribPointer(
+            0,
+            POS_COORDS_NUM,
+            GL_FLOAT,
+            GL_FALSE,
+            (POS_COORDS_NUM + TEX_COORDS_NUM) * sizeof(GLfloat),
+            0
+        ));
+        CHAT_GL_CHECK(glEnableVertexAttribArray(0));
+
+        CHAT_GL_CHECK(glVertexAttribPointer(
+            1,
+            TEX_COORDS_NUM,
+            GL_FLOAT,
+            GL_FALSE,
+            (POS_COORDS_NUM + TEX_COORDS_NUM) * sizeof(GLfloat),
+            reinterpret_cast<const void *>(POS_COORDS_NUM * sizeof(GLfloat))
+        ));
+        CHAT_GL_CHECK(glEnableVertexAttribArray(1));
+    } else {
+        CHAT_GL_CHECK(glVertexAttribPointer(
+            0,
+            POS_COORDS_NUM,
+            GL_FLOAT,
+            GL_FALSE,
+            POS_COORDS_NUM * sizeof(GLfloat),
+            0
+        ));
+        CHAT_GL_CHECK(glEnableVertexAttribArray(0));
+    }
+}
+
+void GlRectPolygon::draw() const {
+    CHAT_GL_CHECK(glBindVertexArray(vao));
+    CHAT_GL_CHECK(glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0));
+}
+
+void GlRectPolygon::setPosition(const GlViewport &viewport, const RectPos &new_pos) {
+    genVertices(viewport, new_pos);
+
+    size_t vertices_arr_size =
+        has_texture_coords ? TEX_VERTICES_ARRAY_SIZE : NOTEX_VERTICES_ARRAY_SIZE;
+
+    CHAT_GL_CHECK(glBindBuffer(GL_ARRAY_BUFFER, vbo));
+    CHAT_GL_CHECK(glBufferSubData(
+        GL_ARRAY_BUFFER,
+        0,
+        static_cast<GLsizeiptr>(vertices_arr_size * sizeof(GLfloat)),
+        vertices.data()
+    ));
+}
+
+void GlTexturedRect::flush() {
+    CHAT_GL_CHECK(glBindTexture(GL_TEXTURE_2D, texure));
+    CHAT_GL_CHECK(
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, res.x, res.y, GL_RGBA, GL_UNSIGNED_BYTE, buf.get())
+    );
+}
+
+bool GlTexturedRect::waitForSync(std::chrono::nanoseconds timeout) {
+    // TODO: add streaming texture.
+    return true;
+};
+
+GlTexturedRect::GlTexturedRect(
+    GlRenderer &renderer_,
+    const RectPos &pos,
+    Vec2Px res_,
+    TextureMode mode_
+)
+    : renderer(renderer_),
+      polygon(GlViewport(renderer), pos, true),
+      res(res_),
+      mode(mode_) {
+
+    CHAT_GL_CHECK(glGenTextures(1, &texure.getIdRef()));
+
+    CHAT_GL_CHECK(glBindTexture(GL_TEXTURE_2D, texure));
+    CHAT_GL_CHECK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT));
+    CHAT_GL_CHECK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT));
+
+    CHAT_GL_CHECK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
+    CHAT_GL_CHECK(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+
+    buf_capacity = static_cast<size_t>(res.x * res.y) * sizeof(unsigned char) * TEXTURE_CHANNELS;
+    buf = unique_ptr<unsigned char[]>(new unsigned char[buf_capacity]);
+
+    CHAT_GL_CHECK(glTexImage2D(
+        GL_TEXTURE_2D,
+        0,
+        GL_RGBA,
+        res.x,
+        res.y,
+        0,
+        GL_RGBA,
+        GL_UNSIGNED_BYTE,
+        buf.get()
+    ));
+}
+
+void GlTexturedRect::draw() const {
+    const auto &shp_man = renderer.getShaderProgramsManager();
+    shp_man.getTextured().use();
+    shp_man.getTextured().setUniform("texture_", 0);
+
+    CHAT_GL_CHECK(glActiveTexture(GL_TEXTURE0));
+    CHAT_GL_CHECK(glBindTexture(GL_TEXTURE_2D, texure));
+
+    polygon.draw();
+}
+
+void GlTexturedRect::resize(Vec2Px new_res) {
+    res = new_res;
+
+    size_t new_buf_size = static_cast<size_t>(new_res.x * new_res.y) * TEXTURE_CHANNELS;
+    if (new_buf_size > buf_capacity) {
+        buf_capacity = new_buf_size;
+        buf = unique_ptr<unsigned char[]>(new unsigned char[new_buf_size]);
+    }
+
+    CHAT_GL_CHECK(glTexImage2D(
+        GL_TEXTURE_2D,
+        0,
+        GL_RGBA,
+        new_res.x,
+        new_res.y,
+        0,
+        GL_RGBA,
+        GL_UNSIGNED_BYTE,
+        buf.get()
+    ));
+}
+
+void GlColoredRect::draw() const {
+    const auto &shp_man = renderer.getShaderProgramsManager();
+    shp_man.getColored().use();
+    shp_man.getColored().setUniform("color", color);
+
+    polygon.draw();
+}
+
+unique_ptr<Renderer> chat::gui::makeGlRenderer(const RendererConfig &config) {
+    return std::make_unique<GlRenderer>(config.enable_debug_log, config.enable_blur);
 }

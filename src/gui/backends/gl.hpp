@@ -12,10 +12,6 @@
 
 namespace chat::gui::backends {
 
-class GlRendererContext;
-
-namespace gl_details {
-
 using GlSingleDeleteFun = void(GLuint);
 using GlArrayDeleteFun = void(GLsizei, const GLuint *);
 
@@ -49,7 +45,6 @@ inline void GlDeleteFunCaller<GlArrayDeleteFun **>::operator()(GlArrayDeleteFun 
 }
 
 template <auto deleteFunPtr> class GlObject {
-  private:
     GLuint id = 0;
 
     using DeleteFunType = std::remove_pointer_t<std::remove_pointer_t<decltype(deleteFunPtr)>>;
@@ -99,7 +94,6 @@ template <auto deleteFunPtr> class GlObject {
 };
 
 class GlShaderProgram {
-  private:
     GlObject<&glDeleteProgram> obj;
 
     constexpr static size_t INFO_LOG_SIZE = 2048;
@@ -148,7 +142,6 @@ class GlShaderProgram {
 };
 
 class GlShaderProgramsManager {
-  private:
     GlShaderProgram colored, textured_argb8888;
 
   public:
@@ -163,141 +156,10 @@ class GlShaderProgramsManager {
     }
 };
 
-// Represents single OpenGL polygon without shaders.
-class GlRectPolygon {
-  private:
-    constexpr static std::array<GLuint, 6> INDICES = {0, 1, 3, 1, 2, 3};
-    constexpr static size_t VERTICES = 4;
-
-    constexpr static size_t POS_COORDS_NUM = 3;
-    constexpr static size_t TEX_COORDS_NUM = 2;
-
-    constexpr static size_t TEX_VERTICES_ARRAY_SIZE = VERTICES * (POS_COORDS_NUM + TEX_COORDS_NUM);
-    constexpr static size_t NOTEX_VERTICES_ARRAY_SIZE = VERTICES * POS_COORDS_NUM;
-
-    constexpr static size_t VERTICES_ARRAY_MAX_SIZE = TEX_VERTICES_ARRAY_SIZE;
-
-    constexpr static auto Z_DEPTH = 256;
-
-    GlObject<&glDeleteVertexArrays> vao;
-    GlObject<&glDeleteBuffers> vbo, ebo;
-
-    glm::mat3 transform_mat{1};
-    std::array<GLfloat, VERTICES_ARRAY_MAX_SIZE> vertices;
-
-    void genVertices(const RectPos &pos, bool add_texture_coords) noexcept;
-
-  public:
-    GlRectPolygon(const RectPos &pos, bool add_texture_coords);
-
-    void draw() const;
-
-    // Note: this method does not update the Z order.
-    void setPosition(const RectPos &new_pos, bool add_texture_coords);
-
-    // Note: this method does not update the Z order.
-    void setTransform(const glm::mat3 &mat) noexcept {
-        transform_mat = mat;
-    }
-};
-
-// TODO: add streaming texture support
-class GlTexture final : public Texture {
-    constexpr static size_t TEXTURE_CHANNELS = 4;
-
-    GlObject<&glDeleteTextures> obj;
-    unique_ptr<unsigned char[]> buf;
-    size_t buf_capacity = 0;
-    Vec2I res;
-    TextureMode mode;
-
-    // === Texture implementation
-
-    void flush() final;
-
-    not_null<unsigned char *> getBuf() noexcept final {
-        return buf.get();
-    };
-
-    bool waitForSync(std::chrono::nanoseconds timeout) final;
-
-  public:
-    size_t getPitch() const noexcept final {
-        return res.x;
-    };
-
-    Vec2I getResolution() const noexcept final {
-        return res;
-    };
-
-    void resize(Vec2I new_res) final;
-
-    not_null<const unsigned char *> getConstBuf() const noexcept final {
-        return buf.get();
-    };
-
-    // === other
-
-    GlTexture(Vec2I res, TextureMode mode);
-
-    // Check before calling any other method outside of the class.
-    // Also check before exposing texture's ptr.
-    bool isEnabled() const noexcept {
-        return mode != TextureMode::NO_TEXTURE;
-    }
-
-    void prepareShader(const GlShaderProgramsManager &shp_man) const;
-};
-
-class GlDrawableRect final : public DrawableRect {
-  private:
-    GlRendererContext &ctx;
-    GlTexture texture;
-    GlRectPolygon polygon;
-    ColorF color;
-    float bg_blur_radius;
-    glm::mat4 transform_mat{1};
-
-  public:
-    GlDrawableRect(GlRendererContext &renderer, const DrawableRectConfig &config);
-
-    // === DrawableRect implementation
-
-    void setPosition(const RectPos &pos) final {
-        polygon.setPosition(pos, texture.isEnabled());
-    }
-
-    void setTransform(const glm::mat3 &mat) final {
-        transform_mat = mat;
-    }
-
-    void setColor(const Color &color) noexcept final {
-        this->color = color;
-    }
-
-    void setBackgroundBlurRadius(float value) noexcept final {
-        // TODO: implement blur
-        bg_blur_radius = value;
-    }
-
-    Texture *getTexture() noexcept final {
-        return texture.isEnabled() ? &texture : nullptr;
-    }
-
-    const Texture *getConstTexture() const noexcept final {
-        return texture.isEnabled() ? &texture : nullptr;
-    };
-
-    void draw() const final;
-};
-
-}; // namespace gl_details
-
-class GlRendererContext final : public RendererContext {
-  private:
-    ColorF clear_color;
+class GlRenderer final : public Renderer {
+    Vec2Px size;
+    GlShaderProgramsManager shader_progs_manager;
     bool enable_blur;
-    gl_details::GlShaderProgramsManager shader_programs_manager;
 
     static void handleGlewError(GLenum err);
 
@@ -312,20 +174,152 @@ class GlRendererContext final : public RendererContext {
     );
 
   public:
-    GlRendererContext(Color clear_color, bool enable_debug_log, bool enable_blur);
+    GlRenderer(bool enable_debug_log, bool enable_blur);
 
-    const gl_details::GlShaderProgramsManager &getShaderProgramsManager() const noexcept {
-        return shader_programs_manager;
+    void clear() const final;
+
+    void resize(Vec2Px size) final;
+
+    unique_ptr<TexturedRect>
+    createBitmapTexturedRect(const RectPos &pos, Vec2Px res, TextureMode mode) final;
+
+    unique_ptr<ColoredRect>
+    createColoredRect(const RectPos &pos, Color color, float background_blur_radius) final;
+
+    Vec2Px getRes() const noexcept {
+        return size;
     }
 
-    // === Renderer implementation
+    const GlShaderProgramsManager &getShaderProgramsManager() const noexcept {
+        return shader_progs_manager;
+    };
+};
 
-    [[nodiscard]]
-    unique_ptr<DrawableRect> createRect(const DrawableRectConfig &conf) final;
+class GlViewport {
+    GlRenderer &renderer;
 
-    void resize(Vec2I drawable_area_size) final;
+  public:
+    GlViewport(GlRenderer &renderer_)
+        : renderer(renderer_) {};
 
-    void drawStart() const final;
+    glm::vec2 pxToGlCoords(Vec2Px pos) const noexcept {
+        return glm::vec2{pos.x, pos.y} / glm::vec2{renderer.getRes().x, renderer.getRes().y};
+    }
+};
+
+// Represents single OpenGL polygon without shaders.
+class GlRectPolygon {
+    constexpr static std::array<GLuint, 6> INDICES = {0, 1, 3, 1, 2, 3};
+    constexpr static size_t VERTICES = 4;
+
+    constexpr static size_t POS_COORDS_NUM = 3;
+    constexpr static size_t TEX_COORDS_NUM = 2;
+
+    constexpr static size_t TEX_VERTICES_ARRAY_SIZE = VERTICES * (POS_COORDS_NUM + TEX_COORDS_NUM);
+    constexpr static size_t NOTEX_VERTICES_ARRAY_SIZE = VERTICES * POS_COORDS_NUM;
+
+    constexpr static size_t VERTICES_ARRAY_MAX_SIZE = TEX_VERTICES_ARRAY_SIZE;
+
+    constexpr static auto Z_DEPTH = 256;
+
+    bool has_texture_coords;
+    GlObject<&glDeleteVertexArrays> vao;
+    GlObject<&glDeleteBuffers> vbo, ebo;
+    glm::mat3 transform_mat{1};
+    std::array<GLfloat, VERTICES_ARRAY_MAX_SIZE> vertices;
+
+    void genVertices(const GlViewport &viewport, const RectPos &pos) noexcept;
+
+  public:
+    GlRectPolygon(const GlViewport &viewport, const RectPos &pos, bool add_texture_coords);
+
+    void draw() const;
+
+    void setPosition(const GlViewport &viewport, const RectPos &new_pos);
+
+    void setTransform(const glm::mat3 &mat) noexcept {
+        transform_mat = mat;
+    }
+};
+
+// TODO: add streaming texture support
+class GlTexturedRect final : public TexturedRect {
+    constexpr static size_t TEXTURE_CHANNELS = 4;
+
+    GlRenderer &renderer;
+    GlObject<&glDeleteTextures> texure;
+    GlRectPolygon polygon;
+    unique_ptr<unsigned char[]> buf;
+    size_t buf_capacity = 0;
+    Vec2Px res;
+    TextureMode mode;
+
+    void flush() final;
+
+    not_null<unsigned char *> getBuf() noexcept final {
+        return buf.get();
+    };
+
+    bool waitForSync(std::chrono::nanoseconds timeout) final;
+
+  public:
+    GlTexturedRect(GlRenderer &renderer, const RectPos &pos, Vec2Px res, TextureMode mode);
+
+    void setPosition(const RectPos &pos) final {
+        polygon.setPosition(renderer, pos);
+    };
+
+    void setTransform(const glm::mat3 &transform) final {
+        polygon.setTransform(transform);
+    }
+
+    void draw() const final;
+
+    size_t getPitch() const noexcept final {
+        return res.x;
+    };
+
+    Vec2Px getResolution() const noexcept final {
+        return res;
+    };
+
+    void resize(Vec2Px new_res) final;
+
+    not_null<const unsigned char *> getConstBuf() const noexcept final {
+        return buf.get();
+    };
+};
+
+class GlColoredRect final : public ColoredRect {
+    GlRenderer &renderer;
+    GlRectPolygon polygon;
+    ColorF color;
+    float bg_blur_radius;
+
+  public:
+    GlColoredRect(GlRenderer &renderer_, const RectPos &pos, Color color_, float bg_blur_radius_)
+        : renderer{renderer_},
+          polygon{GlViewport{renderer}, pos, false},
+          color{color_},
+          bg_blur_radius{bg_blur_radius_} {};
+
+    void setPosition(const RectPos &pos) final {
+        polygon.setPosition(renderer, pos);
+    }
+
+    void setTransform(const glm::mat3 &mat) final {
+        polygon.setTransform(mat);
+    }
+
+    void draw() const final;
+
+    void setColor(const Color &color) noexcept final {
+        this->color = colorToF(color);
+    }
+
+    void setBackgroundBlurRadius(float value) noexcept final {
+        bg_blur_radius = value;
+    }
 };
 
 } // namespace chat::gui::backends

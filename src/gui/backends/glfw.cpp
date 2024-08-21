@@ -1,6 +1,7 @@
-#include "win_glfw_impl.hpp"
+#include "glfw.hpp"
 
 #include "../renderer.hpp"
+#include "gui/vec.hpp"
 #include "gui/win.hpp"
 #include "log.hpp"
 #include <GLFW/glfw3.h>
@@ -25,25 +26,24 @@ GlfwWindow::GlfwWindow(const RendererConfig &config) {
     GlfwWindowSystem::setCallbacksForWindow(win_handle);
 
     switchContext();
-
+    updateSizeAndScale();
     // vsync
     glfwSwapInterval(1);
 
     // call only after creating GLFW window and switching context.
-    renderer_ctx = makeGlRendererContext(config);
+    renderer_ctx = makeGlRenderer(config);
 }
 
 void GlfwWindow::update() {
     switchContext();
 
     if (resize_required) {
-        Vec2I fb_size;
-        glfwGetFramebufferSize(win_handle, &fb_size.x, &fb_size.y);
-        renderer_ctx->resize(fb_size);
+        updateSizeAndScale();
+        renderer_ctx->resize(size);
         resize_required = false;
     }
 
-    renderer_ctx->drawStart();
+    renderer_ctx->clear();
 
     glfwSwapBuffers(win_handle);
 }
@@ -57,17 +57,17 @@ void GlfwWindowSystem::onError(int error, const char *description) noexcept {
     );
 }
 
-void GlfwWindowSystem::onWindowRefresh(GlfwCWindowHandle window) noexcept {
-    auto &this_ = getWindow(window);
+void GlfwWindowSystem::onWindowRefresh(GlfwCWindowHandle win_handle) noexcept {
+    auto &this_ = getWindow(win_handle);
     this_.requireRefresh();
 }
 
 void GlfwWindowSystem::onWindowResize(
-    GlfwCWindowHandle window,
+    GlfwCWindowHandle win_handle,
     [[maybe_unused]] int width,
     [[maybe_unused]] int height
 ) noexcept {
-    auto &this_ = getWindow(window);
+    auto &this_ = getWindow(win_handle);
     this_.requireResize();
 }
 
@@ -77,6 +77,15 @@ void GlfwWindowSystem::handleError() {
 
     throw WindowException(str(format("GLFW error %1% %2%") % code % description));
 }
+
+void GlfwWindowSystem::onWindowScaleChange(
+    GlfwCWindowHandle win_handle,
+    [[maybe_unused]] float xscale,
+    [[maybe_unused]] float yscale
+) noexcept {
+    auto &this_ = getWindow(win_handle);
+    this_.requireResize();
+};
 
 GlfwWindowSystem::GlfwWindowSystem() {
     if (glfwInit() != GLFW_TRUE)
@@ -90,8 +99,9 @@ GlfwWindowSystem::GlfwWindowSystem() {
 }
 
 [[nodiscard]]
-weak_ptr<Window> GlfwWindowSystem::createWindow(const RendererConfig &config) {
-    auto ptr = std::make_shared<GlfwWindow>(config);
+weak_ptr<Window>
+GlfwWindowSystem::createWindow(const RendererConfig &renderer_config, float ui_scale) {
+    auto ptr = std::make_shared<GlfwWindow>(renderer_config, ui_scale);
     windows.emplace_back(ptr);
     return ptr;
 };
@@ -135,6 +145,7 @@ void GlfwWindowSystem::runLoop() {
 void GlfwWindowSystem::setCallbacksForWindow(GlfwCWindowHandle win_handle) {
     glfwSetFramebufferSizeCallback(win_handle, onWindowResize);
     glfwSetWindowRefreshCallback(win_handle, onWindowRefresh);
+    glfwSetWindowContentScaleCallback(win_handle, onWindowScaleChange);
 }
 
 unique_ptr<WindowSystem> chat::gui::makeGlfwWindowSystem() {
