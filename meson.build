@@ -17,11 +17,15 @@ chat_deps = [
   rnnoise_dep,
 ]
 
+if not meson.get_compiler('cpp').check_header('glm/glm.hpp')
+  error('require glm library')
+endif
 
 if target_machine.system() == 'windows'
-    add_project_arguments('-DCHAT_BUILD_WINDOWS', language : ['c', 'cpp'])
     chat_deps += meson.get_compiler('cpp').find_library('ws2_32', required: true)
 endif
+
+add_project_arguments('-DCHAT_BUILD_TARGET_' + target_machine.system().to_upper(), language : ['c', 'cpp'])
 
 subdir('src')
 
