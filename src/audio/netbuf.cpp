@@ -3,6 +3,7 @@
 #include "log.hpp"
 #include "opus.h"
 #include "opus_defines.h"
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -26,28 +27,22 @@ NetBuf::~NetBuf() {
 
 void NetBuf::push(boost::span<uint8_t> pack) {
     assert(pack.size() <= MAX_ENCODER_BLOCK_SIZE);
-    std::lock_guard lg(mux);
-    mux.lock();
-    if (buf.full()) {
-        std::unique_lock ul(waitReadMux);
-        mux.unlock();
-        waitRead.wait(ul);
-        mux.lock();
+    std::unique_lock lg(mux);
+    while (buf.full()) {
+        waitRead.wait(lg);
     }
     buf.push_back();
-    buf.back().resize(pack.size());
-    memcpy(buf.back().data(), pack.data(), pack.size());
+    std::copy(pack.begin(), pack.end(), std::back_inserter(buf.back()));
     waitWrite.notify_one();
 }
 
-void NetBuf::pop(Frame &frame) {
-    std::lock_guard lg(mux);
-    if (buf.empty()) {
-        std::unique_lock ul(waitWriteMux);
-        mux.unlock();
-        waitWrite.wait(ul);
-        mux.lock();
+void NetBuf::read(Frame &frame) {
+    std::unique_lock lg(mux);
+
+    while (buf.empty()) {
+        waitWrite.wait(lg);
     }
+
     frame.resize(FRAME_SIZE * chans);
     int err = opus_decode_float(
         dec,
@@ -61,6 +56,7 @@ void NetBuf::pop(Frame &frame) {
         throw OpusException(err);
     }
     buf.pop_front();
+
     if (buf.size() + 1 > depth) {
         frameBuf.resize(FRAME_SIZE * chans);
         int err = opus_decode_float(
@@ -79,4 +75,5 @@ void NetBuf::pop(Frame &frame) {
         }
         buf.pop_front();
     }
+    waitRead.notify_one();
 }

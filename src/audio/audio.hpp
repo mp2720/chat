@@ -26,13 +26,13 @@ inline constexpr int SAMPLE_RATE = 48000;
 inline constexpr size_t FRAME_SIZE = 960;
 inline constexpr size_t MAX_ENCODER_BLOCK_SIZE = 128;
 
+using boost::span;
 using boost::container::static_vector;
 using portaudio::Device;
 using std::atomic;
 using std::list;
 using std::shared_ptr;
 using std::unique_ptr;
-
 using Time = PaTime;
 
 using Frame = std::vector<float>;
@@ -174,11 +174,9 @@ class Recorder : public RawSource, public Reconfigurable {
 
   private:
     void setState(State state);
-    std::mutex mux;
-    std::mutex cvMux;
     std::mutex stateMux;
     std::condition_variable cv;
-    State st;
+    atomic<State> st;
     portaudio::BlockingStream stream;
 };
 
@@ -188,8 +186,8 @@ class NetBuf {
   public:
     NetBuf(size_t depth = 3, int channels = 1);
     ~NetBuf();
-    void push(boost::span<uint8_t> pack);
-    void pop(Frame &frame);
+    void push(span<uint8_t> pack);
+    void read(Frame &frame);
 
   private:
     size_t depth;
@@ -198,9 +196,7 @@ class NetBuf {
     OpusDecoder *dec;
     std::mutex mux;
     std::condition_variable waitRead;
-    std::mutex waitReadMux;
     std::condition_variable waitWrite;
-    std::mutex waitWriteMux;
     Frame frameBuf;
 };
 

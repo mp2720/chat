@@ -22,12 +22,11 @@ function download_github_tar_gz_release {
 cd subprojects
 
 download_github_tar_gz_release "GSL" "4.0.0" "microsoft/gsl"
-
+download_github_tar_gz_release "portaudio" "19.7.0" "PortAudio/portaudio" true
 download_github_tar_gz_release "rnnoise" "0.2" "xiph/rnnoise" true
+
 pushd rnnoise
     ./download_model.sh
 popd
-
-download_github_tar_gz_release "portaudio" "19.7.0" "PortAudio/portaudio" true
 
 echo "ok"

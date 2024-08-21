@@ -35,6 +35,7 @@ void receiver(aud::NetBuf *nb) {
         nb->push(recv_buffer);
     }
 }
+
 void sender() {
     std::vector<uint8_t> send_buffer;
     aud::OpusEncSrc es(aud::mic, aud::EncoderPreset::Voise);
@@ -82,7 +83,7 @@ int main() {
     out.start();
     aud::Frame frame;
     while (1) {
-        nb.pop(frame);
+        nb.read(frame);
         out.write(frame);
     }
 }

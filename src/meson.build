@@ -1,4 +1,4 @@
-cpp_args = ['-Wall', '-Wextra', '-Og']
+cpp_args = ['-Wall', '-Wextra', '-O0']
 
 link_args = []
 

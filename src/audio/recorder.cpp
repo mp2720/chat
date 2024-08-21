@@ -22,23 +22,17 @@ Recorder::Recorder() {
         FRAME_SIZE,
         paNoFlag
     );
-    std::lock_guard<std::mutex> g(mux);
     stream.open(params);
-    setState(State::Stopped);
+    st = State::Stopped;
 }
 
 Recorder::~Recorder() {
-    {
-        std::lock_guard<std::mutex> g(mux);
-        setState(State::Finalized);
-        stream.close();
-    }
+    st = State::Finalized;
+    stream.close();
     cv.notify_all();
 }
 
 void Recorder::reconf() {
-    stop();
-    lockState();
     bool isActive = stream.isActive();
     stream.close();
     portaudio::DirectionSpecificStreamParameters inParams;
@@ -54,34 +48,23 @@ void Recorder::reconf() {
         FRAME_SIZE,
         paNoFlag
     );
-    std::lock_guard<std::mutex> g(mux);
     stream.open(params);
     if (isActive) {
         stream.start();
     }
-    unlockState();
-}
-
-void Recorder::setState(State state) {
-    std::lock_guard<std::mutex> g(cvMux);
-    st = state;
 }
 
 void Recorder::start() {
-    {
-        std::lock_guard<std::mutex> g(mux);
-        stream.start();
-    }
-    setState(State::Active);
+    std::lock_guard g(stateMux);
+    st = State::Active;
+    stream.start();
     cv.notify_all();
 }
 
 void Recorder::stop() {
-    setState(State::Stopped);
-    std::lock_guard<std::mutex> g(mux);
-    if (stream.isActive()) {
-        stream.stop();
-    }
+    std::lock_guard g(stateMux);
+    st = State::Stopped;
+    stream.stop();    
 }
 
 int Recorder::channels() const {
@@ -89,24 +72,20 @@ int Recorder::channels() const {
 }
 
 State Recorder::state() {
-    std::lock_guard<std::mutex> g(mux);
     return st;
 }
 
 void Recorder::read(Frame &frame) {
-    {
-        std::lock_guard<std::mutex> g(mux);
-        frame.resize(FRAME_SIZE);
-        stream.read(frame.data(), FRAME_SIZE);
-    }
+    frame.resize(FRAME_SIZE);
+    stream.read(frame.data(), FRAME_SIZE);
     for (auto &dsp : dsps) {
         dsp->process(frame);
     }
 }
 
 void Recorder::waitActive() {
-    if (state() == State::Stopped) {
-        std::unique_lock<std::mutex> lk(cvMux);
+    std::unique_lock lk(stateMux);
+    while (st == State::Stopped) {
         cv.wait(lk);
     }
 }

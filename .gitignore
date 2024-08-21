@@ -4,6 +4,5 @@
 build/
 coverage/
 
-subprojects/GSL/
-subprojects/rnnoise/
-subprojects/portaudio/
+subprojects/**
+!subprojects/*.build

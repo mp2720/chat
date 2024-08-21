@@ -3,6 +3,7 @@
 #include "portaudiocpp/BlockingStream.hxx"
 #include "portaudiocpp/DirectionSpecificStreamParameters.hxx"
 #include <cassert>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
@@ -42,13 +43,14 @@ State Player::state() {
 }
 
 void Player::setVolume(float percentage) {
+    assert(percentage >= 0);
     d->volume = percentage / 100;
 }
 
 void Player::playerThread() {
     auto local_d = this->d;
     Frame buf;
-    local_d->out->start();
+    bool onActiveStart = true;
     while (1) {
         if (local_d->deleteFlag) {
             local_d->src->stop();
@@ -59,6 +61,7 @@ void Player::playerThread() {
         case State::Active: {
             local_d->src->read(buf);
             local_d->src->unlockState();
+            std::this_thread::sleep_for(std::chrono::microseconds(1));
             if (buf.empty())
                 break;
             float vol = local_d->volume;
@@ -67,15 +70,21 @@ void Player::playerThread() {
                     v *= vol;
                 }
             }
+            if (onActiveStart) {
+                onActiveStart = false;
+                local_d->out->start();
+            }
             local_d->out->write(buf);
 
         } break;
 
         case State::Stopped: {
             local_d->src->unlockState();
-            { local_d->out->stop(); }
+            if (!onActiveStart) {
+                local_d->out->stop();
+                onActiveStart = true;
+            }
             local_d->src->waitActive();
-            { local_d->out->start(); }
         } break;
 
         case State::Finalized: {
@@ -113,16 +122,12 @@ int PaOutput::channels() const {
 
 void PaOutput::stop() {
     std::lock_guard<std::mutex> lg(mux);
-    if (!stream.isStopped()) {
-        stream.stop();
-    }
+    stream.stop();
 }
 
 void PaOutput::start() {
     std::lock_guard<std::mutex> lg(mux);
-    if (!stream.isActive()) {
-        stream.start();
-    }
+    stream.start();
 }
 
 void PaOutput::write(Frame &frame) {
@@ -137,7 +142,9 @@ void PaOutput::write(Frame &frame) {
 void PaOutput::reconf() {
     std::lock_guard<std::mutex> lg(mux);
     bool isActive = stream.isActive();
-    stream.close();
+    if (isActive) {
+        stream.close();
+    }
     portaudio::DirectionSpecificStreamParameters outParams;
     outParams.setDevice(getOutputDevice());
     outParams.setNumChannels(chans);

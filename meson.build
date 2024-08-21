@@ -11,7 +11,6 @@ chat_deps = [
   cmake.subproject('GSL').dependency('GSL'),
   dependency('gl'),
   dependency('glfw3'),
-  dependency('portaudiocpp'),
   dependency('opus'),
   dependency('boost'),
   subproject('portaudio').get_variable('portaudiocpp_dep'),
