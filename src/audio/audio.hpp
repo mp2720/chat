@@ -17,7 +17,6 @@
 #include <portaudiocpp/Device.hxx>
 #include <portaudiocpp/PortAudioCpp.hxx>
 #include <rnnoise.h>
-#include <thread>
 #include <vector>
 
 namespace aud {
@@ -121,7 +120,7 @@ class Player : public Controllable {
         atomic<float> volume = 1; // 100%
         shared_ptr<RawSource> src;
         shared_ptr<Output> out;
-        std::thread thrd;
+        std::mutex waitThreadStart;
     };
     std::shared_ptr<PlayerData> d;
     void playerThread();
@@ -135,7 +134,7 @@ class DSP {
 
 class RnnoiseDSP : public DSP {
   public:
-    RnnoiseDSP();
+    RnnoiseDSP(const char * modelFileName = nullptr);
     ~RnnoiseDSP();
     void process(Frame &frame) override;
     void on();
@@ -145,6 +144,8 @@ class RnnoiseDSP : public DSP {
   private:
     atomic<bool> state = true;
     DenoiseState *handler;
+    RNNModel *model = nullptr;
+    std::vector<uint8_t> model_buf;
 };
 
 class VolumeDSP : public DSP {
@@ -152,7 +153,7 @@ class VolumeDSP : public DSP {
     void process(Frame &frame) override;
     void set(float val); // 0 - 100 or more for amplification
     float get();
-
+    
   private:
     atomic<float> val{1};
 };

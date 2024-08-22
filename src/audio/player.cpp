@@ -22,8 +22,9 @@ Player::Player(std::shared_ptr<RawSource> src, shared_ptr<Output> out) {
     d = std::make_shared<PlayerData>();
     d->src = src;
     d->out = out;
-    d->thrd = std::thread(&Player::playerThread, this);
-    d->thrd.detach();
+    d->waitThreadStart.lock();
+    std::thread(&Player::playerThread, this).detach();
+    d->waitThreadStart.lock(); //wait unlock from playerThread()
 }
 
 Player::~Player() {
@@ -48,23 +49,24 @@ void Player::setVolume(float percentage) {
 }
 
 void Player::playerThread() {
-    auto local_d = this->d;
+    auto d = this->d;
     Frame buf;
     bool onActiveStart = true;
+    d->waitThreadStart.unlock();
     while (1) {
-        if (local_d->deleteFlag) {
-            local_d->src->stop();
+        if (d->deleteFlag) {
+            d->src->stop();
             return;
         }
-        local_d->src->lockState();
-        switch (local_d->src->state()) {
+        d->src->lockState();
+        switch (d->src->state()) {
         case State::Active: {
-            local_d->src->read(buf);
-            local_d->src->unlockState();
+            d->src->read(buf);
+            d->src->unlockState();
             std::this_thread::sleep_for(std::chrono::microseconds(1));
             if (buf.empty())
                 break;
-            float vol = local_d->volume;
+            float vol = d->volume;
             if (vol != 1) {
                 for (float &v : buf) {
                     v *= vol;
@@ -72,23 +74,24 @@ void Player::playerThread() {
             }
             if (onActiveStart) {
                 onActiveStart = false;
-                local_d->out->start();
+                d->out->start();
             }
-            local_d->out->write(buf);
+            d->out->write(buf);
 
         } break;
 
         case State::Stopped: {
-            local_d->src->unlockState();
+            d->src->unlockState();
             if (!onActiveStart) {
-                local_d->out->stop();
+                d->out->stop();
                 onActiveStart = true;
             }
-            local_d->src->waitActive();
+            d->src->waitActive();
         } break;
 
         case State::Finalized: {
-            local_d->src->unlockState();
+            d->src->unlockState();
+            d->out->stop();
             if (endOfSourceCallback) {
                 endOfSourceCallback();
             }

@@ -1,17 +1,34 @@
 #include "audio.hpp"
+#include "log.hpp"
+#include <boost/format.hpp>
 #include <cassert>
 #include <csignal>
 #include <cstdint>
 #include <rnnoise.h>
 
-aud::RnnoiseDSP::RnnoiseDSP() {
+aud::RnnoiseDSP::RnnoiseDSP(const char *modelFileName) {
     assert(aud::SAMPLE_RATE == 48000);
-    handler = rnnoise_create(NULL);
+    if (modelFileName) {
+        FILE *f = fopen(modelFileName, "r");
+        if (f) {
+            model = rnnoise_model_from_file(f);
+            fclose(f);
+        } else {
+            CHAT_LOGE(
+                boost::format("error opening file \"%1%\", rnnoise uses standard model") %
+                modelFileName
+            );
+        }
+    }
+    handler = rnnoise_create(model);
     assert(handler);
 }
 
 aud::RnnoiseDSP::~RnnoiseDSP() {
     rnnoise_destroy(handler);
+    if (model) {
+        rnnoise_model_free(model);
+    }
 }
 
 void aud::RnnoiseDSP::process(Frame &frame) {
