@@ -13,6 +13,8 @@ chat_deps = [
   dependency('glfw3'),
   dependency('opus'),
   dependency('boost'),
+  dependency('mbedtls'),
+  dependency('mbedcrypto'),
   subproject('portaudio').get_variable('portaudiocpp_dep'),
   rnnoise_dep,
 ]
