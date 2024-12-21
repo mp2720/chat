@@ -1,10 +1,12 @@
 #pragma once
 
 #include "opus.h"
+#include "portaudiocpp/Stream.hxx"
 #include <atomic>
 #include <boost/circular_buffer.hpp>
 #include <boost/container/static_vector.hpp>
 #include <boost/core/span.hpp>
+#include <cassert>
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
@@ -21,9 +23,9 @@
 
 namespace aud {
 
-inline constexpr int SAMPLE_RATE = 48000;
-inline constexpr size_t FRAME_SIZE = 960;
-inline constexpr size_t MAX_ENCODER_BLOCK_SIZE = 128;
+constexpr int SAMPLE_RATE = 48000;
+constexpr size_t FRAME_SIZE = 960;
+constexpr size_t MAX_ENCODER_BLOCK_SIZE = 128;
 
 using boost::span;
 using boost::container::static_vector;
@@ -79,13 +81,68 @@ class RawSource : public Source {
     virtual ~RawSource() = default;
 };
 
-class Output {
+class IO {
   public:
     virtual void stop() = 0;
     virtual void start() = 0;
     virtual int channels() const = 0;
+    virtual ~IO() = default;
+};
+
+class Output : public IO {
+  public:
     virtual void write(Frame &frame) = 0;
     virtual ~Output() = default;
+};
+
+class Input : public IO {
+  public:
+    virtual void read(Frame &frame) = 0;
+    virtual ~Input() = default;
+};
+
+class PaOut : public Output, portaudio::BlockingStream {
+  public:
+    PaOut() : PaOut(1) {}
+    PaOut(int channels);
+    int channels() const override {
+        return channelsNum;
+    }
+    void write(Frame &frame) override {
+        assert(frame.size() == this->channelsNum * FRAME_SIZE);
+        portaudio::BlockingStream::write(frame.data(), FRAME_SIZE);
+    }
+    void stop() override {
+        portaudio::Stream::stop();
+    }
+    void start() override {
+        portaudio::Stream::start();
+    }
+
+  private:
+    int channelsNum;
+};
+
+class PaIn : public Input, portaudio::BlockingStream {
+  public:
+    PaIn() : PaIn(1) {}
+    PaIn(int channels);
+    int channels() const override {
+        return channelsNum;
+    }
+    void read(Frame &frame) override {
+        frame.resize(FRAME_SIZE * channelsNum);
+        portaudio::BlockingStream::read(frame.data(), FRAME_SIZE);
+    }
+    void stop() override {
+        portaudio::Stream::stop();
+    }
+    void start() override {
+        portaudio::Stream::start();
+    }
+
+  private:
+    int channelsNum;
 };
 
 class PaOutput : public Output, public Reconfigurable {
