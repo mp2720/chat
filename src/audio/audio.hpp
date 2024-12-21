@@ -36,7 +36,13 @@ using std::shared_ptr;
 using std::unique_ptr;
 using Time = PaTime;
 
-using Frame = std::vector<float>;
+class Frame : public std::vector<float> {
+  public:
+    using std::vector<float>::vector;
+    int channels() const {
+        return (int)size() / SAMPLE_RATE;
+    }
+};
 
 void initialize();
 void terminate();
@@ -210,7 +216,7 @@ class VolumeDSP : public DSP {
     void process(Frame &frame) override;
     void set(float val); // 0 - 100 or more for amplification
     float get();
-    
+
   private:
     atomic<float> val{1};
 };
