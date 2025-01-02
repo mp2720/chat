@@ -5,11 +5,15 @@ BUILD_DIR=build
 
 setup:
 	mkdir -p ${BUILD_DIR}/
-	meson setup ${BUILD_DIR}/ --buildtype=debug -Db_coverage=true
+	meson setup ${BUILD_DIR}/ --buildtype=debug -Dwarning_level=2 -Db_coverage=true
 
 setup_clang:
 	mkdir -p ${BUILD_DIR}/
 	CC=clang CXX=clang++ LD=lld CXX_LD=lld meson setup ${BUILD_DIR}/ --buildtype=debug -Db_coverage=true
+
+setup_win_release:
+	mkdir -p ${BUILD_DIR}/
+	meson setup ${BUILD_DIR} --buildtype=release --default-library=static --default-both-libraries=static --prefer-static -Db_coverage=false -Db_lto=true -Db_ndebug=true
 
 run: build
 	${BUILD_DIR}/chat

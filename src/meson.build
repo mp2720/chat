@@ -1,4 +1,6 @@
-cpp_args = ['-Wall', '-Wextra', '-O0']
+#cpp_args = ['-Wall', '-Wextra', '-O0']
+
+cpp_args = []
 
 link_args = []
 

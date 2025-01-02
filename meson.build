@@ -24,6 +24,13 @@ endif
 
 if target_machine.system() == 'windows'
   chat_deps += meson.get_compiler('cpp').find_library('ws2_32', required: true)
+  chat_deps += meson.get_compiler('cpp').find_library('winmm', required: true)
+  chat_deps += meson.get_compiler('cpp').find_library('setupapi', required: true)
+
+  if meson.get_compiler('cpp').get_id() == 'clang'
+    chat_deps += meson.get_compiler('cpp').find_library('c++', required: true, static: true)
+  endif
+
 endif
 
 add_project_arguments(
