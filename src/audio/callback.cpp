@@ -1,28 +1,32 @@
 #include "audio.hpp"
-#include "types.hpp"
+#include "audio/defs.hpp"
 #include "log.hpp"
+#include "types.hpp"
+#include <boost/range/irange.hpp>
+#include <cstdint>
 
 using namespace chat::aud;
 using namespace chat;
 
-static void compress(Frame &frame) {
-    float maxVal = 0;
+static void compress(const int32_t sum[FRAME_SIZE][CHANNELS], Frame &result) {
+    int32_t maxVal = 0;
     for (auto i : irange(FRAME_SIZE)) {
         for (auto ch : irange(CHANNELS)) {
-            maxVal = std::max(maxVal, std::abs(frame.d[i][ch]));
+            maxVal = std::max(maxVal, std::abs(sum[i][ch]));
         }
     }
-    if (maxVal > 1) {
-        float k = 1 / maxVal;
+    if (maxVal > INT16_MAX) {
+        float k = static_cast<float>(INT16_MAX) / static_cast<float>(maxVal);
+        //printf("%f %d\n", k, maxVal);
         for (auto i : irange(FRAME_SIZE)) {
             for (auto ch : irange(CHANNELS)) {
-                frame.d[i][ch] *= k;
+                result.d[i][ch] = static_cast<int16_t>(static_cast<float>(sum[i][ch]) * k);
             }
         }
     }
 }
 
-void Audio::cbDenoise(const MonoFrame &input) {
+void Audio::cbDenoise(MonoFrame &frame) {
     auto dtype = denoiseType.load();
 
     if (dtype == DenoiseType::Speex && lastDenoiseType != DenoiseType::Speex) {
@@ -34,19 +38,19 @@ void Audio::cbDenoise(const MonoFrame &input) {
         speexPrepr.control(SPEEX_PREPROCESS_SET_DENOISE, &disable);
     }
 
-    speexPrepr.process(input, inputBuf);
+    speexPrepr.process(frame);
 
     if (dtype == DenoiseType::Rnnoise) {
-        rnnoiseDnsr.denoise(inputBuf, inputBuf);
+        rnnoiseDnsr.denoise(frame, frame);
     }
 
     lastDenoiseType = dtype;
 }
 
 int Audio::callback(const MonoFrame &input, Frame &output) noexcept {
-    std::memset(&output, 0, sizeof(Frame));
+    inputBuf = input;
 
-    cbDenoise(input);
+    cbDenoise(inputBuf);
 
     if (lock.try_lock()) {
         if (!cbsToAdd.empty()) {
@@ -56,15 +60,18 @@ int Audio::callback(const MonoFrame &input, Frame &output) noexcept {
         lock.unlock();
     }
 
+    int32_t sum_buffer[FRAME_SIZE][CHANNELS];
+    std::memset(sum_buffer, 0, sizeof(sum_buffer));
+
     int writers = 0;
     for (auto it = callbacks.begin(); it != callbacks.end();) {
         try {
-            auto res = (*it)(inputBuf, outputBuf);
+            auto res = (*it)(inputBuf, output);
             if (res & CbFlagsWrite) {
                 writers += 1;
                 for (auto i : irange(FRAME_SIZE)) {
                     for (auto ch : irange(CHANNELS)) {
-                        output.d[i][ch] += outputBuf.d[i][ch];
+                        sum_buffer[i][ch] += output.d[i][ch];
                     }
                 }
             }
@@ -79,9 +86,8 @@ int Audio::callback(const MonoFrame &input, Frame &output) noexcept {
         }
     }
 
-    outputBuf = output; // safe last output;
     if (writers > 1) {
-        compress(output);
+        compress(sum_buffer, output);
     }
     if (callbacks.empty()) {
         return paComplete;

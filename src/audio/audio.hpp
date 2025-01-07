@@ -46,7 +46,7 @@ class Audio {
 
     PaStream *stream;
     int callback(const MonoFrame &input, Frame &output) noexcept;
-    void cbDenoise(const MonoFrame &input);
+    void cbDenoise(MonoFrame &frame);
     std::vector<Callback> callbacks;
     std::vector<Callback> cbsToAdd;
     std::mutex lock;

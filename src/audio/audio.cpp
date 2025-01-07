@@ -4,6 +4,7 @@
 #include <boost/format.hpp>
 #include <boost/range/irange.hpp>
 #include <cassert>
+#include <cstdint>
 #include <cstring>
 #include <mutex>
 #include <portaudio.h>
@@ -38,7 +39,7 @@ Audio::Audio() {
         &stream,
         1,
         CHANNELS,
-        paFloat32,
+        paInt16,
         SAMPLE_RATE,
         FRAME_SIZE,
         [](const void *inputBuffer,
@@ -75,9 +76,10 @@ Frame::Frame(const MonoFrame &mframe) {
 
 MonoFrame::MonoFrame(const Frame &frame) {
     for (auto i : irange(FRAME_SIZE)) {
+        int32_t val = 0;
         for (auto ch : irange(CHANNELS)) {
-            d[i] += frame.d[i][ch];
+            val += frame.d[i][ch];
         }
-        d[i] /= CHANNELS;
+        d[i] = static_cast<int16_t>(val / CHANNELS);
     }
 }

@@ -15,18 +15,9 @@ namespace aud {
 class SpeexPreprocessor {
   public:
     SpeexPreprocessor();
-    
-    ~SpeexPreprocessor() {
-        speex_preprocess_state_destroy(state);
-    }
-
-    bool process(const MonoFrame &in, MonoFrame &out);
-
-    void control(int request, void *ptr) {
-        if (speex_preprocess_ctl(state, request, ptr) == -1) {
-            CHAT_LOGE(boost::format("Unknown Speex preprocess request: %1%") % request);
-        }
-    }
+    ~SpeexPreprocessor();
+    bool process(MonoFrame &frame);
+    void control(int request, void *ptr);
 
   private:
     SpeexPreprocessState *state;

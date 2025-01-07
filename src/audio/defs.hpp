@@ -19,13 +19,13 @@ struct MonoFrame;
 struct Frame {
     Frame() = default;
     Frame(const MonoFrame &mframe);
-    float d[FRAME_SIZE][CHANNELS];
+    int16_t d[FRAME_SIZE][CHANNELS];
 };
 
 struct MonoFrame {
     MonoFrame() = default;
     MonoFrame(const Frame &frame);
-    float d[FRAME_SIZE];
+    int16_t d[FRAME_SIZE];
 };
 
 using CbFlags = uint32_t;

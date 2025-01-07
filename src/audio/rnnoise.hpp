@@ -10,17 +10,11 @@ using namespace chat;
 
 class RnnoiseDenoiser {
   public:
-    RnnoiseDenoiser(RNNModel *model = nullptr) {
-        state = rnnoise_create(model);
-        assert(state != nullptr);
-    }
-
-    ~RnnoiseDenoiser() {
-        rnnoise_destroy(state);
-    }
-
+    RnnoiseDenoiser(RNNModel *model = nullptr);
+    ~RnnoiseDenoiser();
     void denoise(const MonoFrame &in, MonoFrame &out);
 
   private:
     DenoiseState *state;
+    int rnnoise_frame_size;
 };

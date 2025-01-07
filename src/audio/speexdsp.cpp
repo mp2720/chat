@@ -15,14 +15,17 @@ SpeexPreprocessor::SpeexPreprocessor() {
     speex_preprocess_ctl(state, SPEEX_PREPROCESS_SET_VAD, &disable);
 }
 
-bool chat::aud::SpeexPreprocessor::process(const MonoFrame &in, MonoFrame &out) {
-    spx_int16_t buf[FRAME_SIZE];
-    for (auto i : irange(FRAME_SIZE)) {
-        buf[i] = (int16_t)std::lround(in.d[i] * (INT16_MAX));
-    }
-    bool vad = speex_preprocess_run(state, buf);
-    for (auto i : irange(FRAME_SIZE)) {
-        out.d[i] = (float)buf[i] / INT16_MAX;
-    }
+SpeexPreprocessor::~SpeexPreprocessor() {
+    speex_preprocess_state_destroy(state);
+}
+
+bool SpeexPreprocessor::process(MonoFrame &frame) {
+    bool vad = speex_preprocess_run(state, frame.d);
     return vad;
+}
+
+void SpeexPreprocessor::control(int request, void *ptr) {
+    if (speex_preprocess_ctl(state, request, ptr) == -1) {
+        CHAT_LOGE(boost::format("Unknown Speex preprocess request: %1%") % request);
+    }
 }
