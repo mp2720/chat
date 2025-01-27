@@ -17,7 +17,6 @@ static void compress(const int32_t sum[FRAME_SIZE][CHANNELS], Frame &result) {
     }
     if (maxVal > INT16_MAX) {
         float k = static_cast<float>(INT16_MAX) / static_cast<float>(maxVal);
-        //printf("%f %d\n", k, maxVal);
         for (auto i : irange(FRAME_SIZE)) {
             for (auto ch : irange(CHANNELS)) {
                 result.d[i][ch] = static_cast<int16_t>(static_cast<float>(sum[i][ch]) * k);

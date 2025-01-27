@@ -7,7 +7,7 @@
 #include <cstdio>
 #include <mutex>
 #include <rnnoise.h>
-#include <vector>
+#include <boost/container/small_vector.hpp>
 
 namespace chat {
 namespace aud {
@@ -47,8 +47,8 @@ class Audio {
     PaStream *stream;
     int callback(const MonoFrame &input, Frame &output) noexcept;
     void cbDenoise(MonoFrame &frame);
-    std::vector<Callback> callbacks;
-    std::vector<Callback> cbsToAdd;
+    boost::container::small_vector<Callback, 16> callbacks;
+    boost::container::small_vector<Callback, 4> cbsToAdd;
     std::mutex lock;
     Frame outputBuf;
     MonoFrame inputBuf;

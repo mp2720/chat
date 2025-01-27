@@ -1,4 +1,4 @@
-.PHONY: run run_echo run_echo_opus debug build setup clean test cov
+.PHONY: run debug build setup setup_clang setup_release setup_static_release clean test cov
 
 #to work with a single folder from multiple systems
 BUILD_DIR=build
@@ -11,9 +11,13 @@ setup_clang:
 	mkdir -p ${BUILD_DIR}/
 	CC=clang CXX=clang++ LD=lld CXX_LD=lld meson setup ${BUILD_DIR}/ --buildtype=debug -Db_coverage=true
 
-setup_win_release:
+setup_release:
 	mkdir -p ${BUILD_DIR}/
-	meson setup ${BUILD_DIR} --buildtype=release --default-library=static --default-both-libraries=static --prefer-static -Db_coverage=false -Db_lto=true -Db_ndebug=true
+	meson setup ${BUILD_DIR} --buildtype=release --strip -Db_coverage=false -Db_lto=true -Db_ndebug=true
+
+setup_static_release:
+	mkdir -p ${BUILD_DIR}/
+	meson setup ${BUILD_DIR} --buildtype=release --strip --default-library=static --default-both-libraries=static --prefer-static -Db_coverage=false -Db_lto=true -Db_ndebug=true
 
 run: build
 	${BUILD_DIR}/chat
